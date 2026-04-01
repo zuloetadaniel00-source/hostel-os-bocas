@@ -1,34 +1,20 @@
 // =====================================================
-// HOSTEL-OS BOCAS - APP PRINCIPAL (VERSIÓN COMPLETA)
+// HOSTEL-OS BOCAS - APP PRINCIPAL
 // =====================================================
 
-// ⚠️ REEMPLAZA CON TUS CREDENCIALES DE SUPABASE
-const SUPABASE_URL = 'https://zgqzwiicunsckopmsrti.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpncXp3aWljdW5zY2tvcG1zcnRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5ODA0MDksImV4cCI6MjA5MDU1NjQwOX0.64EymmGBVG5glWZyaNDxM_bLVTz-x4d1zycHsaoC9pc';
+// Configuración de Supabase (REEMPLAZAR con tus credenciales)
+const SUPABASE_URL = 'https://TU-REF.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbG...TU-ANON-KEY';
 
 // Inicializar Supabase
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Estado global de la aplicación
+// Estado global
 let currentUser = null;
 let currentProfile = null;
-let reservationData = {
-    roomId: null,
-    bedId: null,
-    checkIn: null,
-    checkOut: null,
-    guestId: null
-};
+let currentReservation = null;
 
-// =====================================================
-// UTILIDADES DE SEGURIDAD Y FORMATO
-// =====================================================
-
-/**
- * Escapa HTML para prevenir XSS attacks
- * @param {string} str - Texto a escapar
- * @returns {string} Texto seguro
- */
+// Utilidades de seguridad (XSS protection)
 const esc = (str) => {
     if (str == null) return '';
     return String(str)
@@ -39,152 +25,71 @@ const esc = (str) => {
         .replace(/'/g, '&#039;');
 };
 
-/**
- * Crea un elemento DOM de forma segura (alternativa a innerHTML)
- * @param {string} tag - Etiqueta HTML
- * @param {string} text - Contenido de texto
- * @param {Array} classes - Clases CSS
- * @returns {HTMLElement} Elemento seguro
- */
-const createSafeElement = (tag, text, classes = []) => {
-    const el = document.createElement(tag);
-    el.textContent = text || '';
-    classes.forEach(c => el.classList.add(c));
-    return el;
-};
-
-// =====================================================
-// SISTEMA DE NOTIFICACIONES (TOAST)
-// =====================================================
-
-/**
- * Muestra notificación toast
- * @param {string} message - Mensaje a mostrar
- * @param {string} type - Tipo: 'success', 'error', 'warning', 'info'
- * @param {number} duration - Duración en ms (default: 3000)
- */
-function showToast(message, type = 'info', duration = 3000) {
+// Toast notifications
+function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
-    if (!container) return;
-    
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
-    // Icono según tipo
-    const icons = {
-        success: '✓',
-        error: '✕',
-        warning: '⚠',
-        info: 'ℹ'
-    };
-    
-    toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span class="toast-message">${esc(message)}</span>`;
-    
+    toast.textContent = message;
     container.appendChild(toast);
     
-    // Animación de entrada
-    requestAnimationFrame(() => {
-        toast.style.opacity = '1';
-        toast.style.transform = 'translateY(0)';
-    });
-    
-    // Auto-remover
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(-20px)';
         setTimeout(() => toast.remove(), 300);
-    }, duration);
+    }, 3000);
 }
 
-// =====================================================
-// NAVEGACIÓN ENTRE PÁGINAS
-// =====================================================
-
-/**
- * Muestra una página específica y oculta las demás
- * @param {string} pageId - ID de la página a mostrar
- */
+// Navegación entre páginas
 function showPage(pageId) {
     // Ocultar todas las páginas
-    document.querySelectorAll('.page').forEach(page => {
-        page.classList.add('hidden');
-        page.classList.remove('active');
-    });
-    
+    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
     // Mostrar página solicitada
-    const targetPage = document.getElementById(pageId);
-    if (targetPage) {
-        targetPage.classList.remove('hidden');
-        targetPage.classList.add('active');
-    }
+    document.getElementById(pageId).classList.remove('hidden');
     
-    // Actualizar navegación inferior
+    // Actualizar navegación
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
-        const btnPage = btn.dataset.page;
-        if (btnPage && pageId.includes(btnPage)) {
+        if (btn.dataset.page === pageId.replace('-page', '')) {
             btn.classList.add('active');
         }
     });
     
-    // Scroll al top
-    const mainContent = document.getElementById('main-content');
-    if (mainContent) mainContent.scrollTop = 0;
-    
-    // Actualizar título
-    updatePageTitle(pageId);
+    // Scroll to top
+    document.getElementById('main-content').scrollTop = 0;
 }
 
-/**
- * Actualiza el título de la página según la sección
- * @param {string} pageId 
- */
-function updatePageTitle(pageId) {
-    const titles = {
-        'dashboard-page': 'Dashboard',
-        'reservations-page': 'Reservas',
-        'new-reservation-page': 'Nueva Reserva',
-        'new-reservation-step2': 'Nueva Reserva',
-        'new-reservation-step3': 'Nueva Reserva',
-        'reservation-detail-page': 'Detalle de Reserva',
-        'operations-page': 'Tareas',
-        'finances-page': 'Caja'
-    };
-    
-    const titleElement = document.getElementById('page-title');
-    if (titleElement && titles[pageId]) {
-        titleElement.textContent = titles[pageId];
-    }
-}
-
-// Funciones de navegación específicas
 function showDashboard() {
+    document.getElementById('page-title').textContent = 'Dashboard';
     showPage('dashboard-page');
     loadDashboard();
 }
 
 function showReservations() {
+    document.getElementById('page-title').textContent = 'Reservas';
     showPage('reservations-page');
     loadReservationsByDate();
 }
 
 function showNewReservation() {
+    document.getElementById('page-title').textContent = 'Nueva Reserva';
     resetReservationForm();
     showPage('new-reservation-page');
     initStep1();
 }
 
 function showOperations() {
+    document.getElementById('page-title').textContent = 'Tareas';
     showPage('operations-page');
     loadTasks();
 }
 
 function showFinances() {
-    // Verificación de permisos
     if (currentProfile?.role !== 'admin') {
-        showToast('No tienes permiso para ver finanzas. Contacta al administrador.', 'error');
+        showToast('No tienes permiso para ver finanzas', 'error');
         return;
     }
+    document.getElementById('page-title').textContent = 'Caja';
     showPage('finances-page');
     loadFinances();
 }
@@ -193,249 +98,110 @@ function goBack() {
     showReservations();
 }
 
-function goToStep(stepNumber) {
-    const stepMap = {
-        1: 'new-reservation-page',
-        2: 'new-reservation-step2',
-        3: 'new-reservation-step3'
-    };
-    
-    if (stepMap[stepNumber]) {
-        showPage(stepMap[stepNumber]);
-    }
-}
-
-// =====================================================
-// INICIALIZACIÓN DE LA APLICACIÓN
-// =====================================================
-
+// Inicialización
 document.addEventListener('DOMContentLoaded', async () => {
-    // Configurar fechas por defecto (hoy)
-    const today = new Date().toISOString().split('T')[0];
-    const dateInputs = ['check-in-date', 'check-out-date', 'reservations-date', 'finance-date'];
+    // Verificar sesión
+    const { data: { session } } = await supabase.auth.getSession();
     
-    dateInputs.forEach(id => {
-        const input = document.getElementById(id);
-        if (input) input.value = today;
-    });
-    
-    // Fecha mínima para check-in (hoy)
-    const checkInInput = document.getElementById('check-in-date');
-    if (checkInInput) checkInInput.min = today;
-    
-    // Verificar sesión existente
-    try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) throw error;
-        
-        if (session) {
-            await loadUserProfile(session.user);
-            showApp();
-        } else {
-            showLogin();
-        }
-    } catch (err) {
-        console.error('Error al verificar sesión:', err);
+    if (session) {
+        await loadUserProfile(session.user);
+        showApp();
+    } else {
         showLogin();
     }
+    
+    // Configurar fecha por defecto en inputs
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('check-in-date').value = today;
+    document.getElementById('check-out-date').value = today;
+    document.getElementById('reservations-date').value = today;
+    document.getElementById('finance-date').value = today;
 });
 
-// =====================================================
-// GESTIÓN DE USUARIO Y AUTENTICACIÓN
-// =====================================================
-
 function showLogin() {
-    const loginScreen = document.getElementById('login-screen');
-    const appScreen = document.getElementById('app-screen');
-    
-    if (loginScreen) loginScreen.classList.remove('hidden');
-    if (appScreen) appScreen.classList.add('hidden');
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('app-screen').classList.add('hidden');
 }
 
-async function showApp() {
-    const loginScreen = document.getElementById('login-screen');
-    const appScreen = document.getElementById('app-screen');
+function showApp() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app-screen').classList.remove('hidden');
     
-    if (loginScreen) loginScreen.classList.add('hidden');
-    if (appScreen) appScreen.classList.remove('hidden');
+    // Mostrar/ocultar elementos según rol
+    if (currentProfile?.role === 'admin') {
+        document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
+    }
     
-    // Configurar UI según rol
-    configureUIForRole();
+    // Mostrar badge de rol
+    const roleBadge = document.getElementById('user-role');
+    roleBadge.textContent = currentProfile?.role === 'admin' ? 'Admin' : 'Voluntario';
+    roleBadge.className = `badge badge-${currentProfile?.role}`;
     
-    // Mostrar dashboard inicial
     showDashboard();
 }
 
-/**
- * Configura la interfaz según el rol del usuario
- */
-function configureUIForRole() {
-    if (!currentProfile) return;
-    
-    const isAdmin = currentProfile.role === 'admin';
-    
-    // Mostrar/ocultar elementos de admin
-    document.querySelectorAll('.admin-only').forEach(el => {
-        el.classList.toggle('hidden', !isAdmin);
-    });
-    
-    // Actualizar badge de rol
-    const roleBadge = document.getElementById('user-role');
-    if (roleBadge) {
-        roleBadge.textContent = isAdmin ? 'Admin' : 'Voluntario';
-        roleBadge.className = `badge badge-${currentProfile.role}`;
-    }
-}
-
-/**
- * Carga el perfil del usuario desde la base de datos
- * @param {Object} user - Usuario de Supabase Auth
- */
 async function loadUserProfile(user) {
-    if (!user) return;
-    
     currentUser = user;
     
-    try {
-        const { data: profile, error } = await supabase
+    const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+    
+    if (error) {
+        console.error('Error loading profile:', error);
+        // Crear perfil si no existe
+        const { data: newProfile } = await supabase
             .from('profiles')
-            .select('*')
-            .eq('id', user.id)
+            .insert([{
+                id: user.id,
+                email: user.email,
+                full_name: user.user_metadata?.full_name || user.email,
+                role: 'volunteer' // Default
+            }])
+            .select()
             .single();
-        
-        if (error) {
-            // Perfil no existe, crear uno nuevo
-            if (error.code === 'PGRST116') {
-                const { data: newProfile, error: createError } = await supabase
-                    .from('profiles')
-                    .insert([{
-                        id: user.id,
-                        email: user.email,
-                        full_name: user.user_metadata?.full_name || user.email.split('@')[0],
-                        role: 'volunteer', // Rol por defecto
-                        created_at: new Date().toISOString()
-                    }])
-                    .select()
-                    .single();
-                
-                if (createError) throw createError;
-                currentProfile = newProfile;
-                
-                showToast('Perfil creado exitosamente', 'success');
-            } else {
-                throw error;
-            }
-        } else {
-            currentProfile = profile;
-        }
-    } catch (err) {
-        console.error('Error al cargar perfil:', err);
-        showToast('Error al cargar perfil de usuario', 'error');
+        currentProfile = newProfile;
+    } else {
+        currentProfile = profile;
     }
 }
 
-/**
- * Cierra la sesión del usuario
- */
+// Logout
 async function logout() {
-    try {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-        
-        currentUser = null;
-        currentProfile = null;
-        
-        showLogin();
-        showToast('Sesión cerrada', 'info');
-    } catch (err) {
-        console.error('Error al cerrar sesión:', err);
-        showToast('Error al cerrar sesión', 'error');
-    }
+    await supabase.auth.signOut();
+    currentUser = null;
+    currentProfile = null;
+    showLogin();
 }
 
-// =====================================================
-// MODALES Y UTILIDADES UI
-// =====================================================
-
-/**
- * Muestra un modal
- * @param {string} modalId - ID del modal a mostrar
- */
+// Modal functions
 function showModal(modalId) {
-    const overlay = document.getElementById('modal-overlay');
-    const modal = document.getElementById(modalId);
-    
-    if (overlay) overlay.classList.remove('hidden');
-    if (modal) modal.classList.remove('hidden');
-    
-    // Prevenir scroll del body
-    document.body.style.overflow = 'hidden';
+    document.getElementById('modal-overlay').classList.remove('hidden');
+    document.getElementById(modalId).classList.remove('hidden');
 }
 
-/**
- * Cierra todos los modales
- */
 function closeModal() {
-    const overlay = document.getElementById('modal-overlay');
-    
-    if (overlay) overlay.classList.add('hidden');
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.classList.add('hidden');
-    });
-    
-    // Restaurar scroll
-    document.body.style.overflow = '';
+    document.getElementById('modal-overlay').classList.add('hidden');
+    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
 }
 
-// Cerrar modal al hacer clic en el overlay
-document.addEventListener('click', (e) => {
-    if (e.target.id === 'modal-overlay') {
-        closeModal();
-    }
-});
-
-// =====================================================
-// FORMATEO DE DATOS
-// =====================================================
-
-/**
- * Formatea una fecha para mostrar
- * @param {string} dateStr - Fecha en formato ISO
- * @returns {string} Fecha formateada en español
- */
+// Format helpers
 function formatDate(dateStr) {
-    if (!dateStr) return '-';
-    
     const date = new Date(dateStr);
-    const options = { 
+    return date.toLocaleDateString('es-PA', { 
         weekday: 'short', 
         day: 'numeric', 
-        month: 'short',
-        year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-    };
-    
-    return date.toLocaleDateString('es-PA', options);
+        month: 'short' 
+    });
 }
 
-/**
- * Formatea un monto como moneda
- * @param {number|string} amount - Monto a formatear
- * @returns {string} Monto formateado como USD
- */
 function formatCurrency(amount) {
-    const num = parseFloat(amount || 0);
-    return '$' + num.toFixed(2);
+    return '$' + parseFloat(amount || 0).toFixed(2);
 }
 
-/**
- * Formatea fecha y hora
- * @param {string} isoString - Fecha ISO
- * @returns {string} Fecha y hora formateadas
- */
 function formatDateTime(isoString) {
-    if (!isoString) return '-';
-    
     const date = new Date(isoString);
     return date.toLocaleString('es-PA', {
         day: '2-digit',
@@ -444,120 +210,3 @@ function formatDateTime(isoString) {
         minute: '2-digit'
     });
 }
-
-/**
- * Calcula diferencia en días entre dos fechas
- * @param {string} date1 - Fecha inicial
- * @param {string} date2 - Fecha final
- * @returns {number} Número de días
- */
-function daysBetween(date1, date2) {
-    const d1 = new Date(date1);
-    const d2 = new Date(date2);
-    const diffTime = Math.abs(d2 - d1);
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-}
-
-// =====================================================
-// RESET DE FORMULARIOS
-// =====================================================
-
-/**
- * Reinicia el formulario de reserva
- */
-function resetReservationForm() {
-    reservationData = {
-        roomId: null,
-        bedId: null,
-        checkIn: null,
-        checkOut: null,
-        guestId: null
-    };
-    
-    // Resetear formularios
-    const forms = ['step1-form', 'step2-form', 'step3-form'];
-    forms.forEach(id => {
-        const form = document.getElementById(id);
-        if (form) form.reset();
-    });
-    
-    // Resetear UI
-    document.getElementById('step1-continue')?.setAttribute('disabled', 'true');
-    document.getElementById('total-amount') && (document.getElementById('total-amount').value = '0');
-    document.getElementById('initial-payment') && (document.getElementById('initial-payment').value = '0');
-    document.getElementById('balance-due') && (document.getElementById('balance-due').textContent = '$0.00');
-    
-    // Ocultar opciones
-    document.getElementById('dormitory-options')?.classList.add('hidden');
-    document.getElementById('private-options')?.classList.add('hidden');
-    document.getElementById('receipt-upload-group')?.classList.add('hidden');
-    
-    // Limpiar previews
-    const preview = document.getElementById('receipt-preview');
-    if (preview) {
-        preview.innerHTML = '';
-        preview.classList.add('hidden');
-    }
-}
-
-// =====================================================
-// INICIALIZACIÓN DE PASOS DE RESERVA
-// =====================================================
-
-/**
- * Inicializa el paso 1 de creación de reserva
- */
-function initStep1() {
-    // Limpiar selecciones previas
-    document.querySelectorAll('.room-option').forEach(el => el.classList.remove('selected'));
-    document.querySelectorAll('.bed-option').forEach(el => el.classList.remove('selected'));
-    
-    // Cargar disponibilidad si hay fechas
-    updateAvailability();
-}
-
-/**
- * Actualiza la disponibilidad según fechas seleccionadas
- */
-async function updateAvailability() {
-    const checkIn = document.getElementById('check-in-date')?.value;
-    const checkOut = document.getElementById('check-out-date')?.value;
-    
-    if (!checkIn || !checkOut) return;
-    
-    // Validar que check-out sea después de check-in
-    if (new Date(checkOut) <= new Date(checkIn)) {
-        showToast('La fecha de salida debe ser después de la entrada', 'warning');
-        return;
-    }
-    
-    reservationData.checkIn = checkIn;
-    reservationData.checkOut = checkOut;
-    
-    // Recargar opciones si ya están visibles
-    const dormOptions = document.getElementById('dormitory-options');
-    const privOptions = document.getElementById('private-options');
-    
-    if (!dormOptions?.classList.contains('hidden')) {
-        showDormitoryOptions();
-    }
-    if (!privOptions?.classList.contains('hidden')) {
-        showPrivateOptions();
-    }
-}
-
-// =====================================================
-// MANEJO DE ERRORES GLOBAL
-// =====================================================
-
-window.onerror = function(msg, url, line, col, error) {
-    console.error('Error global:', { msg, url, line, col, error });
-    showToast('Ha ocurrido un error. Por favor recarga la página.', 'error');
-    return false;
-};
-
-// Manejar promesas no capturadas
-window.addEventListener('unhandledrejection', function(event) {
-    console.error('Promesa rechazada:', event.reason);
-    showToast('Error en operación asíncrona', 'error');
-});
