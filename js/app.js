@@ -11,13 +11,8 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
 
-// ─────────────────────────────────────────────────────
-// ⚙️  CONFIGURACIÓN SUPABASE
-// Reemplaza con tus valores reales del dashboard de Supabase
-// Project Settings → API → Project URL + anon public key
-// ─────────────────────────────────────────────────────
-const SUPABASE_URL      = 'https://TU_PROYECTO.supabase.co'
-const SUPABASE_ANON_KEY = 'TU_ANON_KEY_AQUI'
+const SUPABASE_URL      = 'https://zgqzwiicunsckopmsrti.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpncXp3aWljdW5zY2tvcG1zcnRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5ODA0MDksImV4cCI6MjA5MDU1NjQwOX0.64EymmGBVG5glWZyaNDxM_bLVTz-x4d1zycHsaoC9pc'  
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
