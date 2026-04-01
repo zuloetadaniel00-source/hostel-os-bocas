@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hostel-OS Bocas</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="screen">
+        <div class="login-container">
+            <div class="logo">
+                <h1>🏝️ Hostel-OS</h1>
+                <p>Bocas del Toro</p>
+            </div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="login-email" required placeholder="tu@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="login-password" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary btn-large">Ingresar</button>
+                <div id="login-error" class="error-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- APP PRINCIPAL -->
+    <div id="app-screen" class="screen hidden">
+        <header class="app-header">
+            <div class="header-left"><h2 id="page-title">Dashboard</h2></div>
+            <div class="header-right">
+                <span id="user-role" class="badge"></span>
+                <button onclick="logout()" class="btn btn-small">Salir</button>
+            </div>
+        </header>
+
+        <nav class="bottom-nav">
+            <button onclick="showDashboard()" class="nav-btn active" data-page="dashboard">
+                <span class="nav-icon">📊</span><span class="nav-label">Inicio</span>
+            </button>
+            <button onclick="showReservations()" class="nav-btn" data-page="reservations">
+                <span class="nav-icon">🛏️</span><span class="nav-label">Reservas</span>
+            </button>
+            <button onclick="showNewReservation()" class="nav-btn nav-btn-main" data-page="new">
+                <span class="nav-icon">+</span><span class="nav-label">Nueva</span>
+            </button>
+            <button onclick="showOperations()" class="nav-btn" data-page="operations">
+                <span class="nav-icon">🧹</span><span class="nav-label">Tareas</span>
+            </button>
+            <button onclick="showFinances()" class="nav-btn admin-only hidden" data-page="finances">
+                <span class="nav-icon">💰</span><span class="nav-label">Caja</span>
+            </button>
+        </nav>
+
+        <main class="main-content" id="main-content">
+            
+            <!-- DASHBOARD -->
+            <div id="dashboard-page" class="page">
+                <div class="dashboard-header">
+                    <h3 id="current-date">Hoy: --</h3>
+                    <div class="occupancy-card">
+                        <div class="occupancy-info">
+                            <span class="occupancy-percentage" id="occupancy-percent">0%</span>
+                            <span class="occupancy-label">Ocupación</span>
+                        </div>
+                        <div class="occupancy-bar"><div class="occupancy-fill" id="occupancy-fill" style="width:0%"></div></div>
+                        <div class="occupancy-numbers"><span id="occupied-beds">0</span> / <span id="total-beds">85</span> camas</div>
+                    </div>
+                </div>
+
+                <div class="quick-stats">
+                    <div class="stat-card" onclick="showTodayCheckins()">
+                        <span class="stat-number" id="today-checkins">0</span>
+                        <span class="stat-label">Check-ins hoy</span>
+                    </div>
+                    <div class="stat-card" onclick="showTodayCheckouts()">
+                        <span class="stat-number" id="today-checkouts">0</span>
+                        <span class="stat-label">Check-outs hoy</span>
+                    </div>
+                    <div class="stat-card admin-only hidden" onclick="showFinances()">
+                        <span class="stat-number" id="today-income">$0</span>
+                        <span class="stat-label">Ingresos hoy</span>
+                    </div>
+                </div>
+
+                <div class="alerts-section">
+                    <h4>⚠️ Alertas</h4>
+                    <div id="alerts-list" class="alerts-list"><p class="text-muted">Cargando...</p></div>
+                </div>
+
+                <div class="upcoming-section">
+                    <h4>📅 Próximas reservas</h4>
+                    <div id="upcoming-list" class="reservations-list"><p class="text-muted">Cargando...</p></div>
+                </div>
+            </div>
+
+            <!-- RESERVAS -->
+            <div id="reservations-page" class="page hidden">
+                <div class="page-header">
+                    <h3>Reservas</h3>
+                    <div class="filters">
+                        <input type="date" id="reservations-date" onchange="loadReservationsByDate()">
+                        <button onclick="showNewReservation()" class="btn btn-primary">+ Nueva</button>
+                    </div>
+                </div>
+                <div class="reservations-tabs">
+                    <button onclick="showTab('checkins')" class="tab-btn active" id="tab-checkins">Check-ins</button>
+                    <button onclick="showTab('checkouts')" class="tab-btn" id="tab-checkouts">Check-outs</button>
+                    <button onclick="showTab('all')" class="tab-btn" id="tab-all">Todas</button>
+                </div>
+                <div id="reservations-list" class="reservations-list"><p class="text-muted">Selecciona fecha</p></div>
+            </div>
+
+            <!-- NUEVA RESERVA - PASO 1 -->
+            <div id="new-reservation-page" class="page hidden">
+                <div class="page-header">
+                    <button onclick="goBack()" class="btn btn-back">← Volver</button>
+                    <h3>Nueva Reserva - Paso 1/3</h3>
+                </div>
+                <div class="step-indicator"><div class="step active">1</div><div class="step">2</div><div class="step">3</div></div>
+                
+                <form id="step1-form" class="reservation-form">
+                    <div class="form-group">
+                        <label>Fecha entrada *</label>
+                        <input type="date" id="check-in-date" required onchange="updateAvailability()">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha salida *</label>
+                        <input type="date" id="check-out-date" required onchange="updateAvailability()">
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo alojamiento *</label>
+                        <div class="radio-group">
+                            <label class="radio-label"><input type="radio" name="accommodation-type" value="dormitory" onchange="showDormitoryOptions()"><span>Cama en dormitorio</span></label>
+                            <label class="radio-label"><input type="radio" name="accommodation-type" value="private" onchange="showPrivateOptions()"><span>Habitación privada</span></label>
+                        </div>
+                    </div>
+                    <div id="dormitory-options" class="accommodation-options hidden">
+                        <label>Selecciona dormitorio:</label>
+                        <div id="dormitory-list" class="room-list"></div>
+                    </div>
+                    <div id="private-options" class="accommodation-options hidden">
+                        <label>Selecciona habitación:</label>
+                        <div id="private-list" class="room-list"></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-large" id="step1-continue" disabled>Continuar →</button>
+                </form>
+            </div>
+            <!-- PASO 2 -->
+            <div id="new-reservation-step2" class="page hidden">
+                <div class="page-header">
+                    <button onclick="goToStep(1)" class="btn btn-back">← Paso 1</button>
+                    <h3>Datos del Huésped - Paso 2/3</h3>
+                </div>
+                <div class="step-indicator"><div class="step completed">✓</div><div class="step active">2</div><div class="step">3</div></div>
+                
+                <form id="step2-form" class="reservation-form">
+                    <div class="form-group"><label>Nombre completo *</label><input type="text" id="guest-name" required></div>
+                    <div class="form-group"><label>Email *</label><input type="email" id="guest-email" required></div>
+                    <div class="form-group"><label>Teléfono / WhatsApp *</label><input type="tel" id="guest-phone" required placeholder="+507 6000-0000"></div>
+                    <div class="form-group"><label>Nacionalidad *</label>
+                        <select id="guest-nationality" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="Panamá">Panamá</option>
+                            <option value="Estados Unidos">Estados Unidos</option>
+                            <option value="Canadá">Canadá</option>
+                            <option value="Colombia">Colombia</option>
+                            <option value="Venezuela">Venezuela</option>
+                            <option value="Argentina">Argentina</option>
+                            <option value="Chile">Chile</option>
+                            <option value="España">España</option>
+                            <option value="Alemania">Alemania</option>
+                            <option value="Francia">Francia</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Documento *</label>
+                        <select id="guest-doc-type" required>
+                            <option value="passport">Pasaporte</option>
+                            <option value="id_card">Cédula</option>
+                            <option value="driver_license">Licencia</option>
+                        </select>
+                        <input type="text" id="guest-doc-id" required placeholder="Número" style="margin-top:8px">
+                    </div>
+                    <div class="form-group"><label>Notas</label><textarea id="guest-notes" rows="2"></textarea></div>
+                    <button type="submit" class="btn btn-primary btn-large">Continuar →</button>
+                </form>
+            </div>
+
+            <!-- PASO 3 -->
+            <div id="new-reservation-step3" class="page hidden">
+                <div class="page-header">
+                    <button onclick="goToStep(2)" class="btn btn-back">← Paso 2</button>
+                    <h3>Pago - Paso 3/3</h3>
+                </div>
+                <div class="step-indicator"><div class="step completed">✓</div><div class="step completed">✓</div><div class="step active">3</div></div>
+                
+                <div class="reservation-summary" id="reservation-summary"></div>
+                
+                <form id="step3-form" class="reservation-form">
+                    <div class="form-group highlight">
+                        <label>Monto TOTAL *</label>
+                        <div class="input-prefix"><span class="prefix">$</span><input type="number" id="total-amount" min="0" step="0.01" value="0" required></div>
+                        <small class="hint">Ingrese monto acordado</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Pago inicial</label>
+                        <div class="input-prefix"><span class="prefix">$</span><input type="number" id="initial-payment" min="0" step="0.01" value="0"></div>
+                        <div class="balance-info">Saldo: <strong id="balance-due">$0.00</strong></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Método de pago *</label>
+                        <div class="payment-methods">
+                            <label class="payment-method"><input type="radio" name="payment-method" value="cash" checked onchange="toggleReceiptUpload()"><span>💵 Efectivo</span></label>
+                            <label class="payment-method"><input type="radio" name="payment-method" value="yappy" onchange="toggleReceiptUpload()"><span>📱 Yappy</span></label>
+                            <label class="payment-method"><input type="radio" name="payment-method" value="card" onchange="toggleReceiptUpload()"><span>💳 Tarjeta</span></label>
+                        </div>
+                    </div>
+                    <div class="form-group hidden" id="receipt-upload-group">
+                        <label>Comprobante *</label>
+                        <input type="file" id="payment-receipt" accept="image/*" capture="environment">
+                        <div id="receipt-preview" class="receipt-preview hidden"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Estado</label>
+                        <select id="reservation-status">
+                            <option value="confirmed">Confirmada</option>
+                            <option value="pending">Pendiente</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-large" id="create-reservation-btn">✓ Crear Reserva</button>
+                </form>
+            </div>
+
+            <!-- DETALLE RESERVA -->
+            <div id="reservation-detail-page" class="page hidden">
+                <div class="page-header"><button onclick="goBack()" class="btn btn-back">← Volver</button><h3>Detalle</h3></div>
+                <div id="reservation-detail-content" class="detail-card"></div>
+                <div class="detail-actions" id="detail-actions"></div>
+            </div>
+
+            <!-- OPERACIONES -->
+            <div id="operations-page" class="page hidden">
+                <div class="page-header"><h3>Tareas</h3></div>
+                <div id="tasks-list" class="tasks-list"><p class="text-muted">Cargando...</p></div>
+            </div>
+
+            <!-- FINANZAS -->
+            <div id="finances-page" class="page hidden">
+                <div class="page-header"><h3>Caja</h3><input type="date" id="finance-date" onchange="loadFinances()"></div>
+                <div class="finance-summary">
+                    <div class="finance-card income"><span class="finance-label">Ingresos</span><span class="finance-amount" id="total-income">$0</span></div>
+                    <div class="finance-card expense"><span class="finance-label">Egresos</span><span class="finance-amount" id="total-expense">$0</span></div>
+                    <div class="finance-card balance"><span class="finance-label">Balance</span><span class="finance-amount" id="total-balance">$0</span></div>
+                </div>
+                <div class="transactions-section">
+                    <h4>Transacciones <button onclick="showNewTransactionModal()" class="btn btn-primary btn-small">+ Movimiento</button></h4>
+                    <div id="transactions-list" class="transactions-list"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODALES -->
+    <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()"></div>
+    <div id="new-transaction-modal" class="modal hidden">
+        <h4>Registrar Movimiento</h4>
+        <form id="new-transaction-form">
+            <div class="form-group">
+                <label>Tipo</label>
+                <div class="radio-group">
+                    <label class="radio-label"><input type="radio" name="trans-type" value="income" checked><span>Ingreso</span></label>
+                    <label class="radio-label"><input type="radio" name="trans-type" value="expense"><span>Egreso</span></label>
+                </div>
+            </div>
+            <div class="form-group"><label>Monto *</label><div class="input-prefix"><span class="prefix">$</span><input type="number" id="trans-amount" min="0.01" step="0.01" required></div></div>
+            <div class="form-group"><label>Categoría *</label>
+                <select id="trans-category" required>
+                    <option value="supplies">Suministros</option>
+                    <option value="food">Comida</option>
+                    <option value="maintenance">Mantenimiento</option>
+                    <option value="salary">Sueldos</option>
+                    <option value="other">Otro</option>
+                </select>
+            </div>
+            <div class="form-group"><label>Método *</label>
+                <select id="trans-method" required>
+                    <option value="cash">Efectivo</option>
+                    <option value="yappy">Yappy</option>
+                    <option value="card">Tarjeta</option>
+                </select>
+            </div>
+            <div class="form-group"><label>Descripción *</label><input type="text" id="trans-description" required></div>
+            <button type="submit" class="btn btn-primary">Guardar</button>
+            <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancelar</button>
+        </form>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- SCRIPTS -->
+    <script src="js/app.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/reservations.js"></script>
+    <script src="js/operations.js"></script>
+    <script src="js/finances.js"></script>
+</body>
+</html>
