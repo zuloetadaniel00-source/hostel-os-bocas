@@ -14,7 +14,7 @@
 
 <body>
 
-    <!-- LOADING (mejora UX) -->
+    <!-- LOADING -->
     <div id="loading" style="position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;z-index:9999;">
         <h2>Cargando sistema...</h2>
     </div>
@@ -80,28 +80,23 @@
         <!-- CONTENIDO -->
         <main id="main-content">
 
-            <!-- DASHBOARD -->
             <div id="dashboard-page" class="page">
                 <h3 id="current-date">Hoy</h3>
                 <p>Bienvenido al sistema</p>
             </div>
 
-            <!-- RESERVAS -->
             <div id="reservations-page" class="page hidden">
                 <h3>Reservas</h3>
             </div>
 
-            <!-- NUEVA -->
             <div id="new-reservation-page" class="page hidden">
                 <h3>Nueva reserva</h3>
             </div>
 
-            <!-- OPERACIONES -->
             <div id="operations-page" class="page hidden">
                 <h3>Tareas</h3>
             </div>
 
-            <!-- FINANZAS -->
             <div id="finances-page" class="page hidden">
                 <h3>Finanzas</h3>
             </div>
@@ -112,8 +107,8 @@
     <!-- TOAST -->
     <div id="toast-container"></div>
 
-    <!-- SCRIPT PRINCIPAL (ÚNICO) -->
-    <script type="module" src="js/app.js"></script>
+    <!-- ✅ SCRIPT PRINCIPAL CORRECTO -->
+    <script type="module" src="./js/app.js"></script>
 
 </body>
 </html>
