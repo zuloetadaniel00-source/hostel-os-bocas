@@ -1,3 +1,13 @@
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await init()           // tu función de arranque
+  } catch (err) {
+    console.error('Error al iniciar:', err)
+  } finally {
+    // Esto se ejecuta SIEMPRE, haya o no error
+    document.getElementById('loading').style.display = 'none'
+  }
+})
 // =====================================================
 // HOSTEL-OS BOCAS - APP PRINCIPAL (FIXED)
 // =====================================================
