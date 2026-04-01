@@ -2,4 +2,4 @@
 const supabaseUrl = 'https://tu-proyecto.supabase.co';
 const supabaseKey = 'tu-anon-key';
 
-const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
