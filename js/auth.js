@@ -39,8 +39,3 @@ supabase.auth.onAuthStateChange(async (event, session) => {
         showLogin();
     }
 });
-
-supabase.auth.onAuthStateChange(async (event, session) => {
-    if(event==='SIGNED_IN') await loadUserProfile(session.user);
-    else if(event==='SIGNED_OUT') showLogin();
-});
