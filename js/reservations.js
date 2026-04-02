@@ -38,8 +38,8 @@ async function loadDormitoryOptions() {
     if (!checkIn || !checkOut) return;
     const list = document.getElementById('dormitory-list');
     list.innerHTML = '<p>Cargando disponibilidad...</p>';
-    const { data: rooms } = await supabase.from('rooms').select('*, beds(*)').eq('type', 'dormitory');
-    const { data: reservations } = await supabase.from('reservations').select('bed_id, status').gte('check_in_date', checkIn).lte('check_in_date', checkOut).neq('status', 'cancelled').neq('status', 'checked_out').is('deleted_at', null);
+    const { data: rooms } = await db.from('rooms').select('*, beds(*)').eq('type', 'dormitory');
+    const { data: reservations } = await db.from('reservations').select('bed_id, status').gte('check_in_date', checkIn).lte('check_in_date', checkOut).neq('status', 'cancelled').neq('status', 'checked_out').is('deleted_at', null);
     const occupiedBeds = new Set(reservations?.map(r => r.bed_id) || []);
     list.innerHTML = '';
     rooms.forEach(room => {
@@ -65,9 +65,9 @@ async function loadPrivateOptions() {
     if (!checkIn || !checkOut) return;
     const list = document.getElementById('private-list');
     list.innerHTML = '<p>Cargando disponibilidad...</p>';
-    const { data: reservations } = await supabase.from('reservations').select('room_id, status').gte('check_in_date', checkIn).lte('check_in_date', checkOut).neq('status', 'cancelled').neq('status', 'checked_out').is('deleted_at', null);
+    const { data: reservations } = await db.from('reservations').select('room_id, status').gte('check_in_date', checkIn).lte('check_in_date', checkOut).neq('status', 'cancelled').neq('status', 'checked_out').is('deleted_at', null);
     const occupiedRooms = new Set(reservations?.map(r => r.room_id) || []);
-    const { data: rooms } = await supabase.from('rooms').select('*').eq('type', 'private').order('number');
+    const { data: rooms } = await db.from('rooms').select('*').eq('type', 'private').order('number');
     list.innerHTML = '';
     rooms.forEach(room => {
         const isOccupied = occupiedRooms.has(room.id);
@@ -200,7 +200,7 @@ document.getElementById('step3-form').addEventListener('submit', async (e) => {
     btn.disabled = true;
     btn.textContent = 'Guardando...';
     try {
-        const { data: guest, error: guestError } = await supabase.from('guests').insert([{
+        const { data: guest, error: guestError } = await db.from('guests').insert([{
             full_name: document.getElementById('guest-name').value,
             email: document.getElementById('guest-email').value,
             phone: document.getElementById('guest-phone').value,
@@ -215,9 +215,9 @@ document.getElementById('step3-form').addEventListener('submit', async (e) => {
         const receiptFile = document.getElementById('payment-receipt').files[0];
         if (receiptFile) {
             const fileName = `${Date.now()}_${receiptFile.name}`;
-            const { error: uploadError } = await supabase.storage.from('receipts').upload(fileName, receiptFile);
+            const { error: uploadError } = await db.storage.from('receipts').upload(fileName, receiptFile);
             if (uploadError) throw uploadError;
-            const { data: { publicUrl } } = supabase.storage.from('receipts').getPublicUrl(fileName);
+            const { data: { publicUrl } } = db.storage.from('receipts').getPublicUrl(fileName);
             receiptUrl = publicUrl;
         }
 
@@ -226,7 +226,7 @@ document.getElementById('step3-form').addEventListener('submit', async (e) => {
         const paymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
         const status = document.getElementById('reservation-status').value;
 
-        const { data: reservation, error: resError } = await supabase.from('reservations').insert([{
+        const { data: reservation, error: resError } = await db.from('reservations').insert([{
             guest_id: guest.id,
             room_id: reservationData.roomId,
             bed_id: reservationData.bedId,
@@ -243,7 +243,7 @@ document.getElementById('step3-form').addEventListener('submit', async (e) => {
         if (resError) throw resError;
 
         if (initialPayment > 0) {
-            const { error: payError } = await supabase.from('payments').insert([{
+            const { error: payError } = await db.from('payments').insert([{
                 reservation_id: reservation.id,
                 amount: initialPayment,
                 payment_method: paymentMethod,
@@ -270,7 +270,7 @@ async function loadReservationsByDate() {
     const date = document.getElementById('reservations-date').value;
     const list = document.getElementById('reservations-list');
     list.innerHTML = '<p>Cargando...</p>';
-    const { data: reservations } = await supabase.from('reservations').select('*, guest:guest_id(full_name), room:room_id(number, name), bed:bed_id(bed_number, room:room_id(number))').or(`check_in_date.eq.${date},check_out_date.eq.${date}`).is('deleted_at', null).order('created_at', { ascending: false });
+    const { data: reservations } = await db.from('reservations').select('*, guest:guest_id(full_name), room:room_id(number, name), bed:bed_id(bed_number, room:room_id(number))').or(`check_in_date.eq.${date},check_out_date.eq.${date}`).is('deleted_at', null).order('created_at', { ascending: false });
     if (!reservations || reservations.length === 0) {
         list.innerHTML = '<p class="text-muted">No hay reservas para esta fecha</p>';
         return;
@@ -307,7 +307,7 @@ function showTab(tab) {
 }
 
 async function showReservationDetail(reservationId) {
-    const { data: res } = await supabase.from('reservations').select('*, guest:guest_id(*), room:room_id(*), bed:bed_id(*, room:room_id(*)), payments(*)').eq('id', reservationId).single();
+    const { data: res } = await db.from('reservations').select('*, guest:guest_id(*), room:room_id(*), bed:bed_id(*, room:room_id(*)), payments(*)').eq('id', reservationId).single();
     if (!res) return;
     const location = res.bed ? `Cama ${res.bed.bed_number} - Hab ${res.bed.room?.number}` : res.room?.name || 'N/A';
     document.getElementById('reservation-detail-content').innerHTML = `
@@ -345,20 +345,20 @@ async function showReservationDetail(reservationId) {
 }
 
 async function doCheckIn(reservationId) {
-    const { error } = await supabase.from('reservations').update({ status: 'checked_in' }).eq('id', reservationId);
+    const { error } = await db.from('reservations').update({ status: 'checked_in' }).eq('id', reservationId);
     if (error) showToast('Error en check-in: ' + error.message, 'error');
     else { showToast('Check-in realizado', 'success'); showReservations(); }
 }
 
 async function doCheckOut(reservationId) {
-    const { error } = await supabase.from('reservations').update({ status: 'checked_out' }).eq('id', reservationId);
+    const { error } = await db.from('reservations').update({ status: 'checked_out' }).eq('id', reservationId);
     if (error) showToast('Error en check-out: ' + error.message, 'error');
     else { showToast('Check-out realizado', 'success'); showReservations(); }
 }
 
 async function cancelReservation(reservationId) {
     if (!confirm('¿Estás seguro de cancelar esta reserva?')) return;
-    const { error } = await supabase.from('reservations').update({ status: 'cancelled', deleted_at: new Date().toISOString() }).eq('id', reservationId);
+    const { error } = await db.from('reservations').update({ status: 'cancelled', deleted_at: new Date().toISOString() }).eq('id', reservationId);
     if (error) showToast('Error al cancelar: ' + error.message, 'error');
     else { showToast('Reserva cancelada', 'success'); showReservations(); }
 }
