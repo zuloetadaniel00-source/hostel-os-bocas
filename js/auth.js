@@ -1,7 +1,6 @@
 // =====================================================
 // AUTENTICACIÓN
 // =====================================================
-
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -13,7 +12,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     errorDiv.textContent = '';
     
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await db.auth.signInWithPassword({
             email,
             password
         });
@@ -31,8 +30,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }
 });
 
-// Escuchar cambios de auth
-supabase.auth.onAuthStateChange(async (event, session) => {
+db.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN') {
         await loadUserProfile(session.user);
     } else if (event === 'SIGNED_OUT') {
