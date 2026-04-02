@@ -4,7 +4,7 @@ async function loadTasks() {
     list.innerHTML = '<p>Cargando...</p>';
     
     try {
-        const { data:tasks, error } = await supabase.from('tasks').select('*,room:room_id(number,name),assigned:assigned_to(full_name)').eq('status','pending').order('priority',{ascending:false}).order('due_date');
+        const { data:tasks, error } = await db.from('tasks').select('*,room:room_id(number,name),assigned:assigned_to(full_name)').eq('status','pending').order('priority',{ascending:false}).order('due_date');
         if (error) throw error;
         
         if (!tasks?.length) { list.innerHTML = '<p class="text-muted">Sin tareas pendientes 🎉</p>'; return; }
@@ -31,7 +31,7 @@ async function loadTasks() {
 
 async function completeTask(id) {
     try {
-        const { error } = await supabase.from('tasks').update({ status:'completed',completed_by:currentUser.id,completed_at:new Date().toISOString() }).eq('id',id);
+        const { error } = await db.from('tasks').update({ status:'completed',completed_by:currentUser.id,completed_at:new Date().toISOString() }).eq('id',id);
         if (error) throw error;
         showToast('Tarea completada','success');
         loadTasks();
@@ -41,7 +41,6 @@ async function completeTask(id) {
 function filterTasks(filter) {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     event.target.classList.add('active');
-    // Expandir para mostrar completadas si se solicita
     if (filter === 'completed') {
         // Cargar tareas completadas
     } else {
@@ -57,14 +56,14 @@ function showNewTaskModal() {
 async function loadRoomOptionsForTask() {
     const select = document.getElementById('task-room');
     if (!select) return;
-    const { data:rooms } = await supabase.from('rooms').select('*').order('number');
+    const { data:rooms } = await db.from('rooms').select('*').order('number');
     select.innerHTML = rooms?.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('') || '';
 }
 
 document.getElementById('new-task-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-        const { error } = await supabase.from('tasks').insert([{
+        const { error } = await db.from('tasks').insert([{
             type: document.getElementById('task-type')?.value,
             room_id: document.getElementById('task-room')?.value,
             priority: document.getElementById('task-priority')?.value,
