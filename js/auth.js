@@ -19,7 +19,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         
         if (error) throw error;
         
-        await loadUserProfile(data.user);
+        //await loadUserProfile(data.user);
         showApp();
         showToast('¡Bienvenido!', 'success');
         
