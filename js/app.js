@@ -6,6 +6,21 @@
 let currentUser = null;
 let currentProfile = null;
 let currentReservation = null;
+let db = null; // Cliente de Supabase
+
+// Inicializar Supabase (asegúrate de que esto se ejecute antes que todo)
+function initSupabase() {
+    // Verifica que supabase esté disponible globalmente
+    if (typeof supabase !== 'undefined') {
+        db = supabase.createClient(
+            'https://tu-url-de-supabase.supabase.co', // Reemplaza con tu URL
+            'tu-anon-key' // Reemplaza con tu anon key
+        );
+        console.log('Supabase inicializado correctamente');
+    } else {
+        console.error('Error: Supabase no está cargado. Asegúrate de incluir el script de Supabase antes de app.js');
+    }
+}
 
 // Utilidades de seguridad (XSS protection)
 const esc = (str) => {
@@ -21,10 +36,17 @@ const esc = (str) => {
 // Toast notifications
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
+    if (!container) {
+        console.error('Toast container no encontrado');
+        alert(message); // Fallback si no existe el contenedor
+        return;
+    }
+    
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
+    
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(-20px)';
@@ -34,22 +56,32 @@ function showToast(message, type = 'info') {
 
 function showPage(pageId) {
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-    document.getElementById(pageId).classList.remove('hidden');
+    const page = document.getElementById(pageId);
+    if (page) {
+        page.classList.remove('hidden');
+    } else {
+        console.error(`Página ${pageId} no encontrada`);
+    }
+    
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
         if (btn.dataset.page === pageId.replace('-page', '')) btn.classList.add('active');
     });
-    document.getElementById('main-content').scrollTop = 0;
+    
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) mainContent.scrollTop = 0;
 }
 
 function showDashboard() {
-    document.getElementById('page-title').textContent = 'Dashboard';
+    const title = document.getElementById('page-title');
+    if (title) title.textContent = 'Dashboard';
     showPage('dashboard-page');
     loadDashboard();
 }
 
 function showReservations() {
-    document.getElementById('page-title').textContent = 'Reservas';
+    const title = document.getElementById('page-title');
+    if (title) title.textContent = 'Reservas';
     showPage('reservations-page');
     loadReservationsByDate();
 }
@@ -63,6 +95,7 @@ let reservationData = {};
 
 // Inicializar paso 1 del formulario de reserva
 function initStep1() {
+    console.log('Inicializando paso 1...');
     currentStep = 1;
     reservationData = {};
     
@@ -81,12 +114,12 @@ function initStep1() {
         if (elemento) elemento.value = '';
     });
     
-    // Cargar datos iniciales si es necesario
-    console.log('Paso 1 inicializado');
+    console.log('Paso 1 inicializado correctamente');
 }
 
 // Inicializar paso 2 (información de fechas y habitación)
 function initStep2() {
+    console.log('Inicializando paso 2...');
     currentStep = 2;
     
     // Guardar datos del paso 1
@@ -119,12 +152,13 @@ function initStep2() {
     // Cargar habitaciones disponibles
     loadAvailableRooms();
     
-    console.log('Paso 2 inicializado', reservationData);
+    console.log('Paso 2 inicializado correctamente', reservationData);
     return true;
 }
 
 // Inicializar paso 3 (confirmación y pago)
 function initStep3() {
+    console.log('Inicializando paso 3...');
     currentStep = 3;
     
     // Guardar datos del paso 2
@@ -154,7 +188,7 @@ function initStep3() {
     // Mostrar resumen de la reserva
     showReservationSummary();
     
-    console.log('Paso 3 inicializado', reservationData);
+    console.log('Paso 3 inicializado correctamente', reservationData);
     return true;
 }
 
@@ -198,10 +232,11 @@ function prevStep() {
 
 // Actualizar disponibilidad según fecha seleccionada
 function updateAvailability() {
+    console.log('Actualizando disponibilidad...');
     const checkIn = document.getElementById('check-in-date')?.value;
     const checkOut = document.getElementById('check-out-date')?.value;
     
-    console.log('Actualizando disponibilidad:', { checkIn, checkOut });
+    console.log('Fechas seleccionadas:', { checkIn, checkOut });
     
     if (!checkIn || !checkOut) return;
     
@@ -215,50 +250,111 @@ function updateAvailability() {
     loadAvailableRooms();
 }
 
-// Cargar habitaciones disponibles
+// Cargar habitaciones disponibles - VERSIÓN CORREGIDA Y ROBUSTA
 async function loadAvailableRooms() {
+    console.log('Cargando habitaciones disponibles...');
+    
     const checkIn = document.getElementById('check-in-date')?.value;
     const checkOut = document.getElementById('check-out-date')?.value;
     const roomSelect = document.getElementById('room-select');
     
-    if (!roomSelect || !checkIn || !checkOut) return;
+    // Verificar que el elemento select existe
+    if (!roomSelect) {
+        console.error('Error: Elemento room-select no encontrado en el DOM');
+        showToast('Error: No se encontró el selector de habitaciones', 'error');
+        return;
+    }
+    
+    if (!checkIn || !checkOut) {
+        console.log('Fechas no seleccionadas, omitiendo carga de habitaciones');
+        return;
+    }
+    
+    // Verificar que Supabase esté inicializado
+    if (!db) {
+        console.error('Error: Cliente de Supabase no inicializado');
+        showToast('Error de conexión con la base de datos', 'error');
+        return;
+    }
     
     try {
-        // Consultar habitaciones disponibles en Supabase
+        console.log('Consultando habitaciones a Supabase...');
+        
+        // Consulta a Supabase - ajusta el nombre de la tabla según tu esquema
         const { data: rooms, error } = await db
             .from('rooms')
             .select('*')
-            .eq('status', 'available');
+            .eq('status', 'available')
+            .order('name', { ascending: true });
         
-        if (error) throw error;
+        if (error) {
+            console.error('Error de Supabase:', error);
+            throw error;
+        }
         
-        // Limpiar opciones actuales
+        console.log('Habitaciones recibidas:', rooms);
+        
+        // Limpiar opciones actuales manteniendo la opción por defecto
         roomSelect.innerHTML = '<option value="">Seleccionar habitación</option>';
         
-        // Agregar habitaciones disponibles
-        rooms?.forEach(room => {
+        // Si no hay habitaciones, mostrar mensaje
+        if (!rooms || rooms.length === 0) {
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = "No hay habitaciones disponibles";
+            option.disabled = true;
+            roomSelect.appendChild(option);
+            console.warn('No se encontraron habitaciones disponibles');
+            return;
+        }
+        
+        // Agregar habitaciones disponibles al dropdown [^16^][^19^]
+        rooms.forEach(room => {
             const option = document.createElement('option');
             option.value = room.id;
-            option.textContent = `${room.name} - ${room.type} ($${room.price}/noche)`;
+            
+            // Formato del texto según los campos disponibles
+            const roomName = room.name || room.room_name || `Habitación ${room.number || room.id}`;
+            const roomType = room.type || room.room_type || 'Standard';
+            const roomPrice = room.price || room.price_per_night || 0;
+            
+            option.textContent = `${roomName} - ${roomType} ($${roomPrice}/noche)`;
+            
+            // Agregar atributos de datos útiles
+            option.dataset.price = roomPrice;
+            option.dataset.type = roomType;
+            option.dataset.capacity = room.capacity || room.max_guests || 2;
+            
             roomSelect.appendChild(option);
         });
         
-        console.log('Habitaciones cargadas:', rooms?.length || 0);
+        console.log(`Habitaciones cargadas exitosamente: ${rooms.length}`);
+        showToast(`${rooms.length} habitaciones disponibles`, 'success');
         
     } catch (error) {
         console.error('Error cargando habitaciones:', error);
-        showToast('Error al cargar habitaciones', 'error');
+        showToast('Error al cargar habitaciones: ' + error.message, 'error');
+        
+        // Opción de fallback en caso de error
+        roomSelect.innerHTML = '<option value="">Error al cargar habitaciones</option>';
     }
 }
 
 // Mostrar resumen de la reserva antes de confirmar
 function showReservationSummary() {
     const summaryDiv = document.getElementById('reservation-summary');
-    if (!summaryDiv) return;
+    if (!summaryDiv) {
+        console.error('Elemento reservation-summary no encontrado');
+        return;
+    }
     
-    const nights = Math.ceil(
-        (new Date(reservationData.checkOut) - new Date(reservationData.checkIn)) / (1000 * 60 * 60 * 24)
-    );
+    const checkInDate = new Date(reservationData.checkIn);
+    const checkOutDate = new Date(reservationData.checkOut);
+    const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+    
+    // Obtener nombre de la habitación seleccionada
+    const roomSelect = document.getElementById('room-select');
+    const roomName = roomSelect?.options[roomSelect.selectedIndex]?.text || 'No seleccionada';
     
     summaryDiv.innerHTML = `
         <div class="summary-item">
@@ -287,7 +383,7 @@ function showReservationSummary() {
         </div>
         <div class="summary-item">
             <span>Habitación:</span>
-            <strong>${esc(reservationData.roomId)}</strong>
+            <strong>${esc(roomName)}</strong>
         </div>
         <div class="summary-item">
             <span>Huéspedes:</span>
@@ -324,7 +420,12 @@ async function createReservation() {
         
         console.log('Creando reserva:', newReservation);
         
-        // Insertar en Supabase
+        // Verificar conexión con Supabase
+        if (!db) {
+            throw new Error('No hay conexión con la base de datos');
+        }
+        
+        // Insertar en Supabase [^15^]
         const { data, error } = await db
             .from('reservations')
             .insert([newReservation])
@@ -333,10 +434,13 @@ async function createReservation() {
         
         if (error) throw error;
         
+        console.log('Reserva creada:', data);
         showToast('Reserva creada exitosamente', 'success');
         
         // Redirigir a la lista de reservas
-        showReservations();
+        setTimeout(() => {
+            showReservations();
+        }, 1500);
         
     } catch (error) {
         console.error('Error al crear reserva:', error);
@@ -367,7 +471,8 @@ function resetReservationForm() {
 }
 
 function showNewReservation() {
-    document.getElementById('page-title').textContent = 'Nueva Reserva';
+    const title = document.getElementById('page-title');
+    if (title) title.textContent = 'Nueva Reserva';
     resetReservationForm();
     showPage('new-reservation-page');
     initStep1();
@@ -378,7 +483,8 @@ function showNewReservation() {
 // =====================================================
 
 function showOperations() {
-    document.getElementById('page-title').textContent = 'Tareas';
+    const title = document.getElementById('page-title');
+    if (title) title.textContent = 'Tareas';
     showPage('operations-page');
     loadTasks();
 }
@@ -388,7 +494,8 @@ function showFinances() {
         showToast('No tienes permiso para ver finanzas', 'error');
         return;
     }
-    document.getElementById('page-title').textContent = 'Caja';
+    const title = document.getElementById('page-title');
+    if (title) title.textContent = 'Caja';
     showPage('finances-page');
     loadFinances();
 }
@@ -397,73 +504,138 @@ function goBack() {
     showReservations();
 }
 
+// Inicialización principal cuando el DOM está listo
 document.addEventListener('DOMContentLoaded', async () => {
-    const { data: { session } } = await db.auth.getSession();
-    if (session) {
-        await loadUserProfile(session.user);
-        showApp();
-    } else {
+    console.log('DOM cargado, inicializando aplicación...');
+    
+    // Inicializar Supabase primero
+    initSupabase();
+    
+    // Verificar sesión
+    try {
+        if (db && db.auth) {
+            const { data: { session } } = await db.auth.getSession();
+            if (session) {
+                await loadUserProfile(session.user);
+                showApp();
+            } else {
+                showLogin();
+            }
+        } else {
+            console.error('Supabase no disponible, mostrando login de fallback');
+            showLogin();
+        }
+    } catch (error) {
+        console.error('Error al verificar sesión:', error);
         showLogin();
     }
+    
+    // Configurar fechas por defecto
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('check-in-date').value = today;
-    document.getElementById('check-out-date').value = today;
-    document.getElementById('reservations-date').value = today;
-    document.getElementById('finance-date').value = today;
+    const checkInDate = document.getElementById('check-in-date');
+    const checkOutDate = document.getElementById('check-out-date');
+    const reservationsDate = document.getElementById('reservations-date');
+    const financeDate = document.getElementById('finance-date');
+    
+    if (checkInDate) checkInDate.value = today;
+    if (checkOutDate) checkOutDate.value = today;
+    if (reservationsDate) reservationsDate.value = today;
+    if (financeDate) financeDate.value = today;
 });
 
 function showLogin() {
-    document.getElementById('login-screen').classList.remove('hidden');
-    document.getElementById('app-screen').classList.add('hidden');
+    const loginScreen = document.getElementById('login-screen');
+    const appScreen = document.getElementById('app-screen');
+    if (loginScreen) loginScreen.classList.remove('hidden');
+    if (appScreen) appScreen.classList.add('hidden');
 }
 
 function showApp() {
-    document.getElementById('login-screen').classList.add('hidden');
-    document.getElementById('app-screen').classList.remove('hidden');
+    const loginScreen = document.getElementById('login-screen');
+    const appScreen = document.getElementById('app-screen');
+    if (loginScreen) loginScreen.classList.add('hidden');
+    if (appScreen) appScreen.classList.remove('hidden');
+    
     if (currentProfile?.role === 'admin') {
         document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
     }
+    
     const roleBadge = document.getElementById('user-role');
-    roleBadge.textContent = currentProfile?.role === 'admin' ? 'Admin' : 'Voluntario';
-    roleBadge.className = `badge badge-${currentProfile?.role}`;
+    if (roleBadge) {
+        roleBadge.textContent = currentProfile?.role === 'admin' ? 'Admin' : 'Voluntario';
+        roleBadge.className = `badge badge-${currentProfile?.role}`;
+    }
+    
     showDashboard();
 }
 
 async function loadUserProfile(user) {
     currentUser = user;
-    const { data: profile, error } = await db.from('profiles').select('*').eq('id', user.id).single();
-    if (error) {
-        console.error('Error loading profile:', error);
-        const { data: newProfile } = await db.from('profiles').insert([{
-            id: user.id,
-            email: user.email,
-            full_name: user.user_metadata?.full_name || user.email,
-            role: 'volunteer'
-        }]).select().single();
-        currentProfile = newProfile;
-    } else {
-        currentProfile = profile;
+    
+    if (!db) {
+        console.error('No se puede cargar perfil: Supabase no inicializado');
+        return;
+    }
+    
+    try {
+        const { data: profile, error } = await db
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+        
+        if (error) {
+            console.error('Error loading profile:', error);
+            // Crear perfil si no existe
+            const { data: newProfile, error: insertError } = await db
+                .from('profiles')
+                .insert([{
+                    id: user.id,
+                    email: user.email,
+                    full_name: user.user_metadata?.full_name || user.email,
+                    role: 'volunteer'
+                }])
+                .select()
+                .single();
+            
+            if (insertError) {
+                console.error('Error creating profile:', insertError);
+                return;
+            }
+            
+            currentProfile = newProfile;
+        } else {
+            currentProfile = profile;
+        }
+    } catch (error) {
+        console.error('Error en loadUserProfile:', error);
     }
 }
 
 async function logout() {
-    await db.auth.signOut();
+    if (db && db.auth) {
+        await db.auth.signOut();
+    }
     currentUser = null;
     currentProfile = null;
     showLogin();
 }
 
 function showModal(modalId) {
-    document.getElementById('modal-overlay').classList.remove('hidden');
-    document.getElementById(modalId).classList.remove('hidden');
+    const overlay = document.getElementById('modal-overlay');
+    const modal = document.getElementById(modalId);
+    if (overlay) overlay.classList.remove('hidden');
+    if (modal) modal.classList.remove('hidden');
 }
 
 function closeModal() {
-    document.getElementById('modal-overlay').classList.add('hidden');
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay) overlay.classList.add('hidden');
     document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
 }
 
 function formatDate(dateStr) {
+    if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('es-PA', { weekday: 'short', day: 'numeric', month: 'short' });
 }
@@ -473,6 +645,7 @@ function formatCurrency(amount) {
 }
 
 function formatDateTime(isoString) {
+    if (!isoString) return '';
     const date = new Date(isoString);
     return date.toLocaleString('es-PA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
