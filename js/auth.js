@@ -12,7 +12,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     errorDiv.textContent = '';
     
     try {
-        const { data, error } = await db.auth.signInWithPassword({
+        const { data, error } = await window.supabaseClient.auth.signInWithPassword({
             email,
             password
         });
@@ -21,12 +21,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 
         console.log("Login OK:", data);
 
-        // 🔥 ESTO ES LO CLAVE
         await loadUserProfile(data.user);
-
-        // 🔥 LUEGO MUESTRAS LA APP
         showApp();
-
         showToast('¡Bienvenido!', 'success');
         
     } catch (error) {
