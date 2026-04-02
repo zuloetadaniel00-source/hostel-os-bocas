@@ -35,26 +35,76 @@ function showPrivateOptions() {
 async function loadDormitoryOptions() {
     const checkIn = document.getElementById('check-in-date').value;
     const checkOut = document.getElementById('check-out-date').value;
+
     if (!checkIn || !checkOut) return;
+
     const list = document.getElementById('dormitory-list');
     list.innerHTML = '<p>Cargando disponibilidad...</p>';
-    const { data: rooms } = await db.from('rooms').select('*, beds(*)').eq('type', 'dormitory');
-    const { data: reservations } = await db.from('reservations').select('bed_id, status').gte('check_in_date', checkIn).lte('check_in_date', checkOut).neq('status', 'cancelled').neq('status', 'checked_out').is('deleted_at', null);
+
+    // 🔹 ROOMS
+    const { data: rooms, error: roomError } = await db
+        .from('rooms')
+        .select('*, beds(*)')
+        .eq('type', 'dormitory');
+
+    if (roomError) {
+        console.error('Error rooms:', roomError);
+        list.innerHTML = '<p>Error cargando habitaciones</p>';
+        return;
+    }
+
+    // 🔹 RESERVATIONS (CORREGIDO)
+    const { data: reservations, error: resError } = await db
+        .from('reservations')
+        .select('bed_id, check_in_date, check_out_date, status')
+        .lte('check_in_date', checkOut)
+        .gte('check_out_date', checkIn)
+        .neq('status', 'cancelled')
+        .neq('status', 'checked_out')
+        .is('deleted_at', null);
+
+    if (resError) {
+        console.error('Error reservations:', resError);
+        list.innerHTML = '<p>Error cargando reservas</p>';
+        return;
+    }
+
+    console.log('ROOMS:', rooms);
+    console.log('RESERVATIONS:', reservations);
+
     const occupiedBeds = new Set(reservations?.map(r => r.bed_id) || []);
+
     list.innerHTML = '';
+
+    if (!rooms || rooms.length === 0) {
+        list.innerHTML = '<p>No hay dormitorios disponibles</p>';
+        return;
+    }
+
     rooms.forEach(room => {
-        const availableBeds = room.beds.filter(b => !occupiedBeds.has(b.id) && b.status === 'available');
+        const availableBeds = (room.beds || []).filter(
+            b => !occupiedBeds.has(b.id) && b.status === 'available'
+        );
+
         const isFull = availableBeds.length === 0;
+
         const div = document.createElement('div');
         div.className = `room-option ${isFull ? 'disabled' : ''}`;
+
         div.innerHTML = `
             <div class="room-info">
                 <h4>${esc(room.name)}</h4>
-                <p>${availableBeds.length} de ${room.beds.length} camas disponibles</p>
+                <p>${availableBeds.length} de ${room.beds?.length || 0} camas disponibles</p>
             </div>
-            <span class="room-status ${isFull ? 'status-occupied' : 'status-available'}">${isFull ? 'Lleno' : 'Disponible'}</span>
+            <span class="room-status ${isFull ? 'status-occupied' : 'status-available'}">
+                ${isFull ? 'Lleno' : 'Disponible'}
+            </span>
         `;
-        if (!isFull) div.onclick = () => selectDormitory(room, availableBeds, div);
+
+        if (!isFull) {
+            div.onclick = () => selectDormitory(room, availableBeds, div);
+        }
+
         list.appendChild(div);
     });
 }
@@ -62,25 +112,73 @@ async function loadDormitoryOptions() {
 async function loadPrivateOptions() {
     const checkIn = document.getElementById('check-in-date').value;
     const checkOut = document.getElementById('check-out-date').value;
+
     if (!checkIn || !checkOut) return;
+
     const list = document.getElementById('private-list');
     list.innerHTML = '<p>Cargando disponibilidad...</p>';
-    const { data: reservations } = await db.from('reservations').select('room_id, status').gte('check_in_date', checkIn).lte('check_in_date', checkOut).neq('status', 'cancelled').neq('status', 'checked_out').is('deleted_at', null);
+
+    // 🔹 RESERVATIONS (CORREGIDO)
+    const { data: reservations, error: resError } = await db
+        .from('reservations')
+        .select('room_id, check_in_date, check_out_date, status')
+        .lte('check_in_date', checkOut)
+        .gte('check_out_date', checkIn)
+        .neq('status', 'cancelled')
+        .neq('status', 'checked_out')
+        .is('deleted_at', null);
+
+    if (resError) {
+        console.error('Error reservations:', resError);
+        list.innerHTML = '<p>Error cargando reservas</p>';
+        return;
+    }
+
     const occupiedRooms = new Set(reservations?.map(r => r.room_id) || []);
-    const { data: rooms } = await db.from('rooms').select('*').eq('type', 'private').order('number');
+
+    // 🔹 ROOMS
+    const { data: rooms, error: roomError } = await db
+        .from('rooms')
+        .select('*')
+        .eq('type', 'private')
+        .order('number');
+
+    if (roomError) {
+        console.error('Error rooms:', roomError);
+        list.innerHTML = '<p>Error cargando habitaciones</p>';
+        return;
+    }
+
+    console.log('ROOMS:', rooms);
+    console.log('RESERVATIONS:', reservations);
+
     list.innerHTML = '';
+
+    if (!rooms || rooms.length === 0) {
+        list.innerHTML = '<p>No hay habitaciones disponibles</p>';
+        return;
+    }
+
     rooms.forEach(room => {
         const isOccupied = occupiedRooms.has(room.id);
+
         const div = document.createElement('div');
         div.className = `room-option ${isOccupied ? 'disabled' : ''}`;
+
         div.innerHTML = `
             <div class="room-info">
                 <h4>${esc(room.name)}</h4>
                 <p>Capacidad: ${room.capacity_total} personas</p>
             </div>
-            <span class="room-status ${isOccupied ? 'status-occupied' : 'status-available'}">${isOccupied ? 'Ocupada' : 'Disponible'}</span>
+            <span class="room-status ${isOccupied ? 'status-occupied' : 'status-available'}">
+                ${isOccupied ? 'Ocupada' : 'Disponible'}
+            </span>
         `;
-        if (!isOccupied) div.onclick = () => selectPrivateRoom(room, div);
+
+        if (!isOccupied) {
+            div.onclick = () => selectPrivateRoom(room, div);
+        }
+
         list.appendChild(div);
     });
 }
