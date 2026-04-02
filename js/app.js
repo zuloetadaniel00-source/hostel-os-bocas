@@ -2,8 +2,6 @@
 // HOSTEL-OS BOCAS - APP PRINCIPAL
 // =====================================================
 
-// Inicializar Supabase
-
 // Estado global
 let currentUser = null;
 let currentProfile = null;
@@ -27,7 +25,6 @@ function showToast(message, type = 'info') {
     toast.className = `toast ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-    
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(-20px)';
@@ -35,22 +32,13 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
-// Navegación entre páginas
 function showPage(pageId) {
-    // Ocultar todas las páginas
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-    // Mostrar página solicitada
     document.getElementById(pageId).classList.remove('hidden');
-    
-    // Actualizar navegación
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
-        if (btn.dataset.page === pageId.replace('-page', '')) {
-            btn.classList.add('active');
-        }
+        if (btn.dataset.page === pageId.replace('-page', '')) btn.classList.add('active');
     });
-    
-    // Scroll to top
     document.getElementById('main-content').scrollTop = 0;
 }
 
@@ -93,19 +81,14 @@ function goBack() {
     showReservations();
 }
 
-// Inicialización
 document.addEventListener('DOMContentLoaded', async () => {
-    // Verificar sesión
-    const { data: { session } } = await supabase.auth.getSession();
-    
+    const { data: { session } } = await db.auth.getSession();
     if (session) {
         await loadUserProfile(session.user);
         showApp();
     } else {
         showLogin();
     }
-    
-    // Configurar fecha por defecto en inputs
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('check-in-date').value = today;
     document.getElementById('check-out-date').value = today;
@@ -121,57 +104,39 @@ function showLogin() {
 function showApp() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app-screen').classList.remove('hidden');
-    
-    // Mostrar/ocultar elementos según rol
     if (currentProfile?.role === 'admin') {
         document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
     }
-    
-    // Mostrar badge de rol
     const roleBadge = document.getElementById('user-role');
     roleBadge.textContent = currentProfile?.role === 'admin' ? 'Admin' : 'Voluntario';
     roleBadge.className = `badge badge-${currentProfile?.role}`;
-    
     showDashboard();
 }
 
 async function loadUserProfile(user) {
     currentUser = user;
-    
-    const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-    
+    const { data: profile, error } = await db.from('profiles').select('*').eq('id', user.id).single();
     if (error) {
         console.error('Error loading profile:', error);
-        // Crear perfil si no existe
-        const { data: newProfile } = await supabase
-            .from('profiles')
-            .insert([{
-                id: user.id,
-                email: user.email,
-                full_name: user.user_metadata?.full_name || user.email,
-                role: 'volunteer' // Default
-            }])
-            .select()
-            .single();
+        const { data: newProfile } = await db.from('profiles').insert([{
+            id: user.id,
+            email: user.email,
+            full_name: user.user_metadata?.full_name || user.email,
+            role: 'volunteer'
+        }]).select().single();
         currentProfile = newProfile;
     } else {
         currentProfile = profile;
     }
 }
 
-// Logout
 async function logout() {
-    await supabase.auth.signOut();
+    await db.auth.signOut();
     currentUser = null;
     currentProfile = null;
     showLogin();
 }
 
-// Modal functions
 function showModal(modalId) {
     document.getElementById('modal-overlay').classList.remove('hidden');
     document.getElementById(modalId).classList.remove('hidden');
@@ -182,14 +147,9 @@ function closeModal() {
     document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
 }
 
-// Format helpers
 function formatDate(dateStr) {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('es-PA', { 
-        weekday: 'short', 
-        day: 'numeric', 
-        month: 'short' 
-    });
+    return date.toLocaleDateString('es-PA', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 function formatCurrency(amount) {
@@ -198,10 +158,5 @@ function formatCurrency(amount) {
 
 function formatDateTime(isoString) {
     const date = new Date(isoString);
-    return date.toLocaleString('es-PA', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    return date.toLocaleString('es-PA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
