@@ -18,22 +18,20 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         });
         
         if (error) throw error;
-        
-        //await loadUserProfile(data.user);
+
+        console.log("Login OK:", data);
+
+        // 🔥 ESTO ES LO CLAVE
+        await loadUserProfile(data.user);
+
+        // 🔥 LUEGO MUESTRAS LA APP
         showApp();
+
         showToast('¡Bienvenido!', 'success');
         
     } catch (error) {
         errorDiv.textContent = 'Email o contraseña incorrectos';
         errorDiv.classList.add('show');
         console.error('Login error:', error);
-    }
-});
-
-db.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN') {
-        await loadUserProfile(session.user);
-    } else if (event === 'SIGNED_OUT') {
-        showLogin();
     }
 });
