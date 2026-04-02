@@ -314,3 +314,51 @@ async function showReservationDetail(reservationId) {
         <div class="detail-section">
             <h4>Información General</h4>
             <div class="detail-row"><span class="detail-label">Huésped</span><span class="detail-value">${esc(res.guest?.full_name)}</span></div>
+            <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${esc(res.guest?.email)}</span></div>
+            <div class="detail-row"><span class="detail-label">Teléfono</span><span class="detail-value">${esc(res.guest?.phone)}</span></div>
+            <div class="detail-row"><span class="detail-label">Documento</span><span class="detail-value">${esc(res.guest?.document_type)}: ${esc(res.guest?.document_id)}</span></div>
+        </div>
+        <div class="detail-section">
+            <h4>Alojamiento</h4>
+            <div class="detail-row"><span class="detail-label">Ubicación</span><span class="detail-value">${esc(location)}</span></div>
+            <div class="detail-row"><span class="detail-label">Entrada</span><span class="detail-value">${formatDate(res.check_in_date)}</span></div>
+            <div class="detail-row"><span class="detail-label">Salida</span><span class="detail-value">${formatDate(res.check_out_date)}</span></div>
+        </div>
+        <div class="detail-section">
+            <h4>Pagos</h4>
+            <div class="detail-row"><span class="detail-label">Total</span><span class="detail-value">${formatCurrency(res.total_amount)}</span></div>
+            <div class="detail-row"><span class="detail-label">Pagado</span><span class="detail-value">${formatCurrency(res.amount_paid)}</span></div>
+            <div class="detail-row"><span class="detail-label">Pendiente</span><span class="detail-value" style="color: ${res.balance_due > 0 ? 'var(--danger)' : 'var(--success)'}">${formatCurrency(res.balance_due)}</span></div>
+            ${res.payments?.map(p => `<div class="detail-row" style="font-size:0.875rem;"><span class="detail-label">${formatDateTime(p.created_at)} - ${p.payment_method}</span><span class="detail-value">${formatCurrency(p.amount)}</span></div>`).join('') || ''}
+        </div>
+        ${res.notes ? `<div class="detail-section"><h4>Notas</h4><p style="font-size:0.875rem;color:var(--gray-600);">${esc(res.notes)}</p></div>` : ''}
+    `;
+    const actions = document.getElementById('detail-actions');
+    actions.innerHTML = '';
+    if (res.status === 'confirmed') actions.innerHTML += `<button onclick="doCheckIn('${res.id}')" class="btn btn-primary">Check-in</button>`;
+    if (res.status === 'checked_in') {
+        actions.innerHTML += `<button onclick="doCheckOut('${res.id}')" class="btn btn-warning">Check-out</button>`;
+        if (res.balance_due > 0) actions.innerHTML += `<button onclick="addPayment('${res.id}')" class="btn btn-success">Registrar pago</button>`;
+    }
+    if (res.status !== 'cancelled' && res.status !== 'checked_out') actions.innerHTML += `<button onclick="cancelReservation('${res.id}')" class="btn btn-danger">Cancelar</button>`;
+    showPage('reservation-detail-page');
+}
+
+async function doCheckIn(reservationId) {
+    const { error } = await supabase.from('reservations').update({ status: 'checked_in' }).eq('id', reservationId);
+    if (error) showToast('Error en check-in: ' + error.message, 'error');
+    else { showToast('Check-in realizado', 'success'); showReservations(); }
+}
+
+async function doCheckOut(reservationId) {
+    const { error } = await supabase.from('reservations').update({ status: 'checked_out' }).eq('id', reservationId);
+    if (error) showToast('Error en check-out: ' + error.message, 'error');
+    else { showToast('Check-out realizado', 'success'); showReservations(); }
+}
+
+async function cancelReservation(reservationId) {
+    if (!confirm('¿Estás seguro de cancelar esta reserva?')) return;
+    const { error } = await supabase.from('reservations').update({ status: 'cancelled', deleted_at: new Date().toISOString() }).eq('id', reservationId);
+    if (error) showToast('Error al cancelar: ' + error.message, 'error');
+    else { showToast('Reserva cancelada', 'success'); showReservations(); }
+}
