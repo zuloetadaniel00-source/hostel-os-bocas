@@ -1,11 +1,10 @@
 // =====================================================
 // FINANZAS / CAJA
 // =====================================================
-
 async function loadFinances() {
     const date = document.getElementById('finance-date').value;
     
-    const { data: transactions } = await supabase
+    const { data: transactions } = await db
         .from('transactions')
         .select('*')
         .eq('shift_date', date)
@@ -56,7 +55,7 @@ document.getElementById('new-transaction-form').addEventListener('submit', async
     
     const type = document.querySelector('input[name="trans-type"]:checked').value;
     
-    const { error } = await supabase
+    const { error } = await db
         .from('transactions')
         .insert([{
             type: type,
