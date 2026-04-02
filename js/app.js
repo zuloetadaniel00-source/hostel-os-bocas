@@ -1,7 +1,6 @@
 // =====================================================
 // HOSTEL-OS BOCAS - APP PRINCIPAL
 // =====================================================
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Inicializar Supabase
 
