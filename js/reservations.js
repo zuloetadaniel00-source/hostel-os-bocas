@@ -1,7 +1,9 @@
 // =====================================================
 // RESERVAS - Crear y gestionar
+// Compatible con app.js (usa supabase global)
 // =====================================================
 
+// Variables de estado del wizard de reserva
 let reservationData = {
     roomId: null,
     bedId: null,
@@ -11,59 +13,161 @@ let reservationData = {
 };
 
 // =====================================================
-// FUNCIONES AUXILIARES
+// FUNCIONES DE NAVEGACIÓN DEL WIZARD
 // =====================================================
 
+/**
+ * Resetea el formulario de reserva completo
+ * Llamado desde app.js cuando se inicia nueva reserva
+ */
 function resetReservationForm() {
-    reservationData = { roomId: null, bedId: null, checkIn: null, checkOut: null, guestId: null };
+    console.log('🔄 Resetear formulario de reserva');
+    
+    // Resetear datos
+    reservationData = {
+        roomId: null,
+        bedId: null,
+        checkIn: null,
+        checkOut: null,
+        guestId: null
+    };
     
     // Resetear formularios
-    const step1 = document.getElementById('step1-form');
-    const step2 = document.getElementById('step2-form');
-    const step3 = document.getElementById('step3-form');
-    
-    if (step1) step1.reset();
-    if (step2) step2.reset();
-    if (step3) step3.reset();
+    const forms = ['step1-form', 'step2-form', 'step3-form'];
+    forms.forEach(id => {
+        const form = document.getElementById(id);
+        if (form) form.reset();
+    });
     
     // Resetear campos específicos
-    const totalAmount = document.getElementById('total-amount');
-    const initialPayment = document.getElementById('initial-payment');
-    const balanceDue = document.getElementById('balance-due');
-    const dormitoryOptions = document.getElementById('dormitory-options');
-    const privateOptions = document.getElementById('private-options');
-    const step1Continue = document.getElementById('step1-continue');
-    const receiptPreview = document.getElementById('receipt-preview');
+    const fields = {
+        'total-amount': '0',
+        'initial-payment': '0',
+        'balance-due': '$0.00'
+    };
     
-    if (totalAmount) totalAmount.value = '0';
-    if (initialPayment) initialPayment.value = '0';
-    if (balanceDue) balanceDue.textContent = '$0.00';
-    if (dormitoryOptions) dormitoryOptions.classList.add('hidden');
-    if (privateOptions) privateOptions.classList.add('hidden');
-    if (step1Continue) step1Continue.disabled = true;
+    Object.entries(fields).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el) {
+            if (id === 'balance-due') {
+                el.textContent = value;
+            } else {
+                el.value = value;
+            }
+        }
+    });
+    
+    // Ocultar opciones de alojamiento
+    const dormitoryOpts = document.getElementById('dormitory-options');
+    const privateOpts = document.getElementById('private-options');
+    
+    if (dormitoryOpts) dormitoryOpts.classList.add('hidden');
+    if (privateOpts) privateOpts.classList.add('hidden');
+    
+    // Deshabilitar botón continuar
+    const continueBtn = document.getElementById('step1-continue');
+    if (continueBtn) continueBtn.disabled = true;
+    
+    // Limpiar listas
+    const dormitoryList = document.getElementById('dormitory-list');
+    const privateList = document.getElementById('private-list');
+    
+    if (dormitoryList) dormitoryList.innerHTML = '';
+    if (privateList) privateList.innerHTML = '';
+    
+    // Ocultar preview de recibo
+    const receiptPreview = document.getElementById('receipt-preview');
     if (receiptPreview) {
         receiptPreview.innerHTML = '';
         receiptPreview.classList.add('hidden');
     }
     
-    // Limpiar listas
-    const dormitoryList = document.getElementById('dormitory-list');
-    const privateList = document.getElementById('private-list');
-    if (dormitoryList) dormitoryList.innerHTML = '';
-    if (privateList) privateList.innerHTML = '';
+    // Mostrar paso 1, ocultar otros
+    const pages = ['new-reservation-page', 'new-reservation-step2', 'new-reservation-step3'];
+    pages.forEach((id, index) => {
+        const page = document.getElementById(id);
+        if (page) {
+            page.classList.toggle('hidden', index !== 0);
+        }
+    });
 }
 
-function showNewReservation() {
-    resetReservationForm();
-    showPage('new-reservation-page');
+/**
+ * Navegar a un paso específico del wizard
+ */
+function goToStep(step) {
+    // Ocultar todas las páginas de reserva
+    const pages = ['new-reservation-page', 'new-reservation-step2', 'new-reservation-step3'];
+    pages.forEach(id => {
+        const page = document.getElementById(id);
+        if (page) page.classList.add('hidden');
+    });
+    
+    // Mostrar el paso solicitado
+    const targetId = step === 1 ? 'new-reservation-page' : 
+                     step === 2 ? 'new-reservation-step2' : 'new-reservation-step3';
+    
+    const targetPage = document.getElementById(targetId);
+    if (targetPage) {
+        targetPage.classList.remove('hidden');
+    }
+    
+    // Actualizar indicadores de paso si existen
+    updateStepIndicators(step);
 }
 
-function goBack() {
-    showReservations();
+/**
+ * Actualizar indicadores visuales de pasos
+ */
+function updateStepIndicators(currentStep) {
+    document.querySelectorAll('.step').forEach((step, index) => {
+        step.classList.remove('active', 'completed');
+        const stepNum = index + 1;
+        
+        if (stepNum === currentStep) {
+            step.classList.add('active');
+        } else if (stepNum < currentStep) {
+            step.classList.add('completed');
+        }
+    });
 }
 
+// =====================================================
+// PASO 1: SELECCIÓN DE FECHAS Y ALOJAMIENTO
+// =====================================================
+
+/**
+ * Mostrar opciones de dormitorio
+ */
+function showDormitoryOptions() {
+    const dormitoryOpts = document.getElementById('dormitory-options');
+    const privateOpts = document.getElementById('private-options');
+    
+    if (dormitoryOpts) dormitoryOpts.classList.remove('hidden');
+    if (privateOpts) privateOpts.classList.add('hidden');
+    
+    loadDormitoryOptions();
+}
+
+/**
+ * Mostrar opciones de habitación privada
+ */
+function showPrivateOptions() {
+    const dormitoryOpts = document.getElementById('dormitory-options');
+    const privateOpts = document.getElementById('private-options');
+    
+    if (dormitoryOpts) dormitoryOpts.classList.add('hidden');
+    if (privateOpts) privateOpts.classList.remove('hidden');
+    
+    loadPrivateOptions();
+}
+
+/**
+ * Actualizar disponibilidad cuando cambian las fechas
+ */
 function updateAvailability() {
     const type = document.querySelector('input[name="accommodation-type"]:checked')?.value;
+    
     if (type === 'dormitory') {
         loadDormitoryOptions();
     } else if (type === 'private') {
@@ -71,59 +175,40 @@ function updateAvailability() {
     }
 }
 
-// =====================================================
-// PASO 1: SELECCIÓN DE ALOJAMIENTO
-// =====================================================
-
-function showDormitoryOptions() {
-    const dormitoryOptions = document.getElementById('dormitory-options');
-    const privateOptions = document.getElementById('private-options');
-    
-    if (dormitoryOptions) dormitoryOptions.classList.remove('hidden');
-    if (privateOptions) privateOptions.classList.add('hidden');
-    
-    loadDormitoryOptions();
-}
-
-function showPrivateOptions() {
-    const dormitoryOptions = document.getElementById('dormitory-options');
-    const privateOptions = document.getElementById('private-options');
-    
-    if (dormitoryOptions) dormitoryOptions.classList.add('hidden');
-    if (privateOptions) privateOptions.classList.remove('hidden');
-    
-    loadPrivateOptions();
-}
-
+/**
+ * Cargar opciones de dormitorios disponibles
+ */
 async function loadDormitoryOptions() {
-    const checkInInput = document.getElementById('check-in-date');
-    const checkOutInput = document.getElementById('check-out-date');
+    const checkInEl = document.getElementById('check-in-date');
+    const checkOutEl = document.getElementById('check-out-date');
     const list = document.getElementById('dormitory-list');
     
-    const checkIn = checkInInput?.value;
-    const checkOut = checkOutInput?.value;
+    const checkIn = checkInEl?.value;
+    const checkOut = checkOutEl?.value;
 
     if (!checkIn || !checkOut) {
-        if (list) list.innerHTML = '<p>Selecciona fechas primero</p>';
+        if (list) list.innerHTML = '<p class="text-muted">Selecciona fechas primero</p>';
+        return;
+    }
+
+    // Validar que check-out sea posterior
+    if (new Date(checkOut) <= new Date(checkIn)) {
+        showToast('La fecha de salida debe ser posterior a la entrada', 'error');
         return;
     }
 
     if (list) list.innerHTML = '<p>Cargando disponibilidad...</p>';
 
     try {
-        // 🔹 OBTENER DORMITORIOS CON SUS CAMAS
+        // Obtener dormitorios con sus camas
         const { data: rooms, error: roomError } = await supabase
             .from('rooms')
             .select('*, beds(*)')
             .eq('type', 'dormitory');
 
-        if (roomError) {
-            console.error('Error rooms:', roomError);
-            if (list) list.innerHTML = '<p>Error cargando habitaciones</p>';
-            return;
-        }
+        if (roomError) throw roomError;
 
-        // 🔹 OBTENER RESERVAS QUE SE SOLAPAN CON EL RANGO (CORREGIDO)
+        // Obtener reservas que se solapan con el rango de fechas
         const { data: reservations, error: resError } = await supabase
             .from('reservations')
             .select('bed_id, check_in_date, check_out_date, status')
@@ -133,19 +218,19 @@ async function loadDormitoryOptions() {
             .neq('status', 'checked_out')
             .is('deleted_at', null);
 
-        if (resError) {
-            console.error('Error reservations:', resError);
-        }
+        if (resError) throw resError;
 
-        console.log('ROOMS:', rooms);
-        console.log('RESERVATIONS:', reservations);
+        console.log('Dormitorios:', rooms);
+        console.log('Reservas ocupadas:', reservations);
 
-        const occupiedBeds = new Set(reservations?.map(r => r.bed_id).filter(id => id !== null) || []);
+        const occupiedBeds = new Set(
+            reservations?.map(r => r.bed_id).filter(id => id !== null) || []
+        );
 
         if (list) list.innerHTML = '';
 
         if (!rooms || rooms.length === 0) {
-            if (list) list.innerHTML = '<p>No hay dormitorios configurados</p>';
+            if (list) list.innerHTML = '<p class="text-muted">No hay dormitorios configurados</p>';
             return;
         }
 
@@ -159,7 +244,6 @@ async function loadDormitoryOptions() {
 
             const div = document.createElement('div');
             div.className = `room-option ${isFull ? 'disabled' : ''}`;
-
             div.innerHTML = `
                 <div class="room-info">
                     <h4>${esc(room.name)}</h4>
@@ -178,28 +262,36 @@ async function loadDormitoryOptions() {
         });
         
     } catch (error) {
-        console.error('Error en loadDormitoryOptions:', error);
-        if (list) list.innerHTML = '<p>Error inesperado</p>';
+        console.error('Error cargando dormitorios:', error);
+        if (list) list.innerHTML = '<p class="error">Error al cargar disponibilidad</p>';
     }
 }
 
+/**
+ * Cargar opciones de habitaciones privadas
+ */
 async function loadPrivateOptions() {
-    const checkInInput = document.getElementById('check-in-date');
-    const checkOutInput = document.getElementById('check-out-date');
+    const checkInEl = document.getElementById('check-in-date');
+    const checkOutEl = document.getElementById('check-out-date');
     const list = document.getElementById('private-list');
     
-    const checkIn = checkInInput?.value;
-    const checkOut = checkOutInput?.value;
+    const checkIn = checkInEl?.value;
+    const checkOut = checkOutEl?.value;
 
     if (!checkIn || !checkOut) {
-        if (list) list.innerHTML = '<p>Selecciona fechas primero</p>';
+        if (list) list.innerHTML = '<p class="text-muted">Selecciona fechas primero</p>';
+        return;
+    }
+
+    if (new Date(checkOut) <= new Date(checkIn)) {
+        showToast('La fecha de salida debe ser posterior a la entrada', 'error');
         return;
     }
 
     if (list) list.innerHTML = '<p>Cargando disponibilidad...</p>';
 
     try {
-        // 🔹 OBTENER RESERVAS QUE SE SOLAPAN (CORREGIDO)
+        // Obtener reservas que se solapan
         const { data: reservations, error: resError } = await supabase
             .from('reservations')
             .select('room_id, check_in_date, check_out_date, status')
@@ -209,32 +301,27 @@ async function loadPrivateOptions() {
             .neq('status', 'checked_out')
             .is('deleted_at', null);
 
-        if (resError) {
-            console.error('Error reservations:', resError);
-        }
+        if (resError) throw resError;
 
-        const occupiedRooms = new Set(reservations?.map(r => r.room_id).filter(id => id !== null) || []);
+        const occupiedRooms = new Set(
+            reservations?.map(r => r.room_id).filter(id => id !== null) || []
+        );
 
-        // 🔹 OBTENER HABITACIONES PRIVADAS
+        // Obtener habitaciones privadas
         const { data: rooms, error: roomError } = await supabase
             .from('rooms')
             .select('*')
             .eq('type', 'private')
             .order('number');
 
-        if (roomError) {
-            console.error('Error rooms:', roomError);
-            if (list) list.innerHTML = '<p>Error cargando habitaciones</p>';
-            return;
-        }
+        if (roomError) throw roomError;
 
-        console.log('PRIVATE ROOMS:', rooms);
-        console.log('OCCUPIED:', occupiedRooms);
+        console.log('Habitaciones privadas:', rooms);
 
         if (list) list.innerHTML = '';
 
         if (!rooms || rooms.length === 0) {
-            if (list) list.innerHTML = '<p>No hay habitaciones privadas configuradas</p>';
+            if (list) list.innerHTML = '<p class="text-muted">No hay habitaciones privadas configuradas</p>';
             return;
         }
 
@@ -243,7 +330,6 @@ async function loadPrivateOptions() {
 
             const div = document.createElement('div');
             div.className = `room-option ${isOccupied ? 'disabled' : ''}`;
-
             div.innerHTML = `
                 <div class="room-info">
                     <h4>${esc(room.name)}</h4>
@@ -262,129 +348,193 @@ async function loadPrivateOptions() {
         });
         
     } catch (error) {
-        console.error('Error en loadPrivateOptions:', error);
-        if (list) list.innerHTML = '<p>Error inesperado</p>';
+        console.error('Error cargando habitaciones privadas:', error);
+        if (list) list.innerHTML = '<p class="error">Error al cargar disponibilidad</p>';
     }
 }
 
+/**
+ * Seleccionar un dormitorio y mostrar camas disponibles
+ */
 function selectDormitory(room, availableBeds, element) {
-    // Limpiar selección previa
+    // Limpiar selecciones previas
     document.querySelectorAll('#dormitory-list .room-option').forEach(el => {
         el.classList.remove('selected');
-        // Remover selección de camas previas
-        const prevBedSelection = el.querySelector('.bed-selection');
-        if (prevBedSelection) prevBedSelection.remove();
+        const prevSelection = el.querySelector('.bed-selection');
+        if (prevSelection) prevSelection.remove();
     });
     
     element.classList.add('selected');
     
-    // Verificar si ya existe selección de camas
-    let bedSelection = element.querySelector('.bed-selection');
-    if (!bedSelection) {
-        bedSelection = document.createElement('div');
-        bedSelection.className = 'bed-selection';
-        bedSelection.style.marginTop = '1rem';
-        bedSelection.innerHTML = '<p style="margin: 0.5rem 0; font-size: 0.875rem; color: var(--gray-600);">Selecciona una cama:</p>';
-        
-        const bedGrid = document.createElement('div');
-        bedGrid.className = 'bed-list';
-        
-        availableBeds.forEach(bed => {
-            const bedDiv = document.createElement('div');
-            bedDiv.className = 'bed-option';
-            bedDiv.textContent = bed.bed_number;
-            bedDiv.onclick = (e) => {
-                e.stopPropagation();
-                document.querySelectorAll('.bed-option').forEach(b => b.classList.remove('selected'));
-                bedDiv.classList.add('selected');
-                reservationData.bedId = bed.id;
-                reservationData.roomId = null;
-                
-                const step1Continue = document.getElementById('step1-continue');
-                if (step1Continue) step1Continue.disabled = false;
-            };
-            bedGrid.appendChild(bedDiv);
-        });
-        
-        bedSelection.appendChild(bedGrid);
-        element.appendChild(bedSelection);
-    }
+    // Crear selector de camas
+    const bedSelection = document.createElement('div');
+    bedSelection.className = 'bed-selection';
+    bedSelection.style.marginTop = '1rem';
+    bedSelection.innerHTML = '<p style="margin: 0.5rem 0; font-size: 0.875rem; color: var(--gray-600);">Selecciona una cama:</p>';
+    
+    const bedGrid = document.createElement('div');
+    bedGrid.className = 'bed-list';
+    
+    availableBeds.forEach(bed => {
+        const bedDiv = document.createElement('div');
+        bedDiv.className = 'bed-option';
+        bedDiv.textContent = bed.bed_number;
+        bedDiv.onclick = (e) => {
+            e.stopPropagation();
+            
+            // Marcar como seleccionada
+            bedGrid.querySelectorAll('.bed-option').forEach(b => b.classList.remove('selected'));
+            bedDiv.classList.add('selected');
+            
+            // Guardar datos
+            reservationData.bedId = bed.id;
+            reservationData.roomId = null;
+            
+            // Habilitar botón continuar
+            const continueBtn = document.getElementById('step1-continue');
+            if (continueBtn) continueBtn.disabled = false;
+        };
+        bedGrid.appendChild(bedDiv);
+    });
+    
+    bedSelection.appendChild(bedGrid);
+    element.appendChild(bedSelection);
 }
 
+/**
+ * Seleccionar una habitación privada
+ */
 function selectPrivateRoom(room, element) {
-    document.querySelectorAll('#private-list .room-option').forEach(el => el.classList.remove('selected'));
+    document.querySelectorAll('#private-list .room-option').forEach(el => {
+        el.classList.remove('selected');
+    });
+    
     element.classList.add('selected');
     
     reservationData.roomId = room.id;
     reservationData.bedId = null;
     
-    const step1Continue = document.getElementById('step1-continue');
-    if (step1Continue) step1Continue.disabled = false;
+    const continueBtn = document.getElementById('step1-continue');
+    if (continueBtn) continueBtn.disabled = false;
 }
 
 // =====================================================
-// EVENT LISTENERS - PASO 1
+// EVENT LISTENERS - CONFIGURADOS DESPUÉS DE CARGAR DOM
 // =====================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('📋 Inicializando reservations.js...');
+    
+    // PASO 1: Formulario de fechas y alojamiento
     const step1Form = document.getElementById('step1-form');
     if (step1Form) {
         step1Form.addEventListener('submit', (e) => {
             e.preventDefault();
             
-            const checkInInput = document.getElementById('check-in-date');
-            const checkOutInput = document.getElementById('check-out-date');
+            const checkInEl = document.getElementById('check-in-date');
+            const checkOutEl = document.getElementById('check-out-date');
             
-            reservationData.checkIn = checkInInput?.value;
-            reservationData.checkOut = checkOutInput?.value;
+            reservationData.checkIn = checkInEl?.value;
+            reservationData.checkOut = checkOutEl?.value;
 
             if (!reservationData.roomId && !reservationData.bedId) {
-                showToast('Selecciona una habitación o cama', 'error');
+                showToast('⚠️ Selecciona una habitación o cama', 'error');
                 return;
             }
 
-            const newReservationPage = document.getElementById('new-reservation-page');
-            const step2Page = document.getElementById('new-reservation-step2');
-            
-            if (newReservationPage) newReservationPage.classList.add('hidden');
-            if (step2Page) step2Page.classList.remove('hidden');
+            goToStep(2);
         });
     }
-});
-
-function goToStep(step) {
-    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
     
-    if (step === 1) {
-        const page = document.getElementById('new-reservation-page');
-        if (page) page.classList.remove('hidden');
-    } else if (step === 2) {
-        const page = document.getElementById('new-reservation-step2');
-        if (page) page.classList.remove('hidden');
-    }
-}
-
-// =====================================================
-// PASO 2: DATOS DEL HUÉSPED
-// =====================================================
-
-document.addEventListener('DOMContentLoaded', () => {
+    // PASO 2: Datos del huésped
     const step2Form = document.getElementById('step2-form');
     if (step2Form) {
         step2Form.addEventListener('submit', (e) => {
             e.preventDefault();
-            
-            const step2Page = document.getElementById('new-reservation-step2');
-            const step3Page = document.getElementById('new-reservation-step3');
-            
-            if (step2Page) step2Page.classList.add('hidden');
-            if (step3Page) step3Page.classList.remove('hidden');
-            
             updateReservationSummary();
+            goToStep(3);
         });
+    }
+    
+    // PASO 3: Pago y confirmación
+    const step3Form = document.getElementById('step3-form');
+    if (step3Form) {
+        step3Form.addEventListener('submit', handleCreateReservation);
+    }
+    
+    // Inputs de monto para calcular balance
+    const totalAmount = document.getElementById('total-amount');
+    const initialPayment = document.getElementById('initial-payment');
+    
+    if (totalAmount) totalAmount.addEventListener('input', updateBalance);
+    if (initialPayment) initialPayment.addEventListener('input', updateBalance);
+    
+    // Preview de comprobante
+    const paymentReceipt = document.getElementById('payment-receipt');
+    if (paymentReceipt) {
+        paymentReceipt.addEventListener('change', handleReceiptPreview);
     }
 });
 
+/**
+ * Manejar preview de comprobante de pago
+ */
+function handleReceiptPreview(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const preview = document.getElementById('receipt-preview');
+        if (preview) {
+            preview.innerHTML = `<img src="${e.target.result}" alt="Comprobante" style="max-width: 100%; border-radius: 8px;">`;
+            preview.classList.remove('hidden');
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+/**
+ * Actualizar el balance pendiente
+ */
+function updateBalance() {
+    const totalEl = document.getElementById('total-amount');
+    const paidEl = document.getElementById('initial-payment');
+    const balanceEl = document.getElementById('balance-due');
+    
+    const total = parseFloat(totalEl?.value) || 0;
+    const paid = parseFloat(paidEl?.value) || 0;
+    
+    if (balanceEl) {
+        balanceEl.textContent = formatCurrency(total - paid);
+    }
+}
+
+/**
+ * Mostrar/ocultar upload de recibo según método de pago
+ */
+function toggleReceiptUpload() {
+    const methodEl = document.querySelector('input[name="payment-method"]:checked');
+    const uploadGroup = document.getElementById('receipt-upload-group');
+    const receiptInput = document.getElementById('payment-receipt');
+    
+    if (!methodEl || !uploadGroup) return;
+    
+    const method = methodEl.value;
+    const requiresReceipt = ['yappy', 'card', 'transfer'].includes(method);
+    
+    if (requiresReceipt) {
+        uploadGroup.classList.remove('hidden');
+        if (receiptInput) receiptInput.required = true;
+    } else {
+        uploadGroup.classList.add('hidden');
+        if (receiptInput) receiptInput.required = false;
+    }
+}
+
+/**
+ * Actualizar resumen antes del pago
+ */
 function updateReservationSummary() {
     const checkIn = reservationData.checkIn;
     const checkOut = reservationData.checkOut;
@@ -397,79 +547,29 @@ function updateReservationSummary() {
     const summary = document.getElementById('reservation-summary');
     if (summary) {
         summary.innerHTML = `
-            <div class="summary-row"><span>Huésped:</span><span>${esc(guestName)}</span></div>
-            <div class="summary-row"><span>Entrada:</span><span>${formatDate(checkIn)}</span></div>
-            <div class="summary-row"><span>Salida:</span><span>${formatDate(checkOut)}</span></div>
-            <div class="summary-row"><span>Noches:</span><span>${nights}</span></div>
+            <div class="summary-row">
+                <span>Huésped:</span>
+                <span>${esc(guestName)}</span>
+            </div>
+            <div class="summary-row">
+                <span>Entrada:</span>
+                <span>${formatDate(checkIn)}</span>
+            </div>
+            <div class="summary-row">
+                <span>Salida:</span>
+                <span>${formatDate(checkOut)}</span>
+            </div>
+            <div class="summary-row">
+                <span>Noches:</span>
+                <span>${nights}</span>
+            </div>
         `;
     }
 }
 
 // =====================================================
-// PASO 3: PAGO Y CONFIRMACIÓN
+// CREAR RESERVA EN BASE DE DATOS
 // =====================================================
-
-document.addEventListener('DOMContentLoaded', () => {
-    const totalAmount = document.getElementById('total-amount');
-    const initialPayment = document.getElementById('initial-payment');
-    
-    if (totalAmount) totalAmount.addEventListener('input', updateBalance);
-    if (initialPayment) initialPayment.addEventListener('input', updateBalance);
-    
-    const paymentReceipt = document.getElementById('payment-receipt');
-    if (paymentReceipt) {
-        paymentReceipt.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const preview = document.getElementById('receipt-preview');
-                    if (preview) {
-                        preview.innerHTML = `<img src="${e.target.result}" alt="Comprobante" style="max-width: 100%; border-radius: 8px;">`;
-                        preview.classList.remove('hidden');
-                    }
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    }
-    
-    const step3Form = document.getElementById('step3-form');
-    if (step3Form) {
-        step3Form.addEventListener('submit', handleCreateReservation);
-    }
-});
-
-function updateBalance() {
-    const totalInput = document.getElementById('total-amount');
-    const paidInput = document.getElementById('initial-payment');
-    const balanceDisplay = document.getElementById('balance-due');
-    
-    const total = parseFloat(totalInput?.value) || 0;
-    const paid = parseFloat(paidInput?.value) || 0;
-    
-    if (balanceDisplay) {
-        balanceDisplay.textContent = formatCurrency(total - paid);
-    }
-}
-
-function toggleReceiptUpload() {
-    const methodRadio = document.querySelector('input[name="payment-method"]:checked');
-    const uploadGroup = document.getElementById('receipt-upload-group');
-    const receiptInput = document.getElementById('payment-receipt');
-    
-    if (!methodRadio || !uploadGroup) return;
-    
-    const method = methodRadio.value;
-    
-    if (method === 'yappy' || method === 'card' || method === 'transfer') {
-        uploadGroup.classList.remove('hidden');
-        if (receiptInput) receiptInput.required = true;
-    } else {
-        uploadGroup.classList.add('hidden');
-        if (receiptInput) receiptInput.required = false;
-    }
-}
 
 async function handleCreateReservation(e) {
     e.preventDefault();
@@ -477,22 +577,27 @@ async function handleCreateReservation(e) {
     const btn = document.getElementById('create-reservation-btn');
     if (btn) {
         btn.disabled = true;
-        btn.textContent = 'Guardando...';
+        btn.textContent = '⏳ Guardando...';
     }
     
     try {
         // 1. CREAR HUÉSPED
         const guestData = {
-            full_name: document.getElementById('guest-name')?.value,
-            email: document.getElementById('guest-email')?.value,
-            phone: document.getElementById('guest-phone')?.value,
+            full_name: document.getElementById('guest-name')?.value?.trim(),
+            email: document.getElementById('guest-email')?.value?.trim(),
+            phone: document.getElementById('guest-phone')?.value?.trim(),
             nationality: document.getElementById('guest-nationality')?.value,
             document_type: document.getElementById('guest-doc-type')?.value,
-            document_id: document.getElementById('guest-doc-id')?.value,
-            notes: document.getElementById('guest-notes')?.value
+            document_id: document.getElementById('guest-doc-id')?.value?.trim(),
+            notes: document.getElementById('guest-notes')?.value?.trim() || null
         };
         
-        console.log('Creando huésped:', guestData);
+        // Validar campos requeridos del huésped
+        if (!guestData.full_name || !guestData.nationality || !guestData.document_id) {
+            throw new Error('Faltan datos requeridos del huésped');
+        }
+        
+        console.log('👤 Creando huésped:', guestData);
         
         const { data: guest, error: guestError } = await supabase
             .from('guests')
@@ -501,18 +606,18 @@ async function handleCreateReservation(e) {
             .single();
         
         if (guestError) {
-            console.error('Error creating guest:', guestError);
+            console.error('Error creando huésped:', guestError);
             throw new Error('Error al crear huésped: ' + guestError.message);
         }
         
-        console.log('Huésped creado:', guest);
+        console.log('✅ Huésped creado:', guest.id);
 
         // 2. SUBIR COMPROBANTE SI EXISTE
         let receiptUrl = null;
         const receiptFile = document.getElementById('payment-receipt')?.files[0];
         
         if (receiptFile) {
-            console.log('Subiendo comprobante...');
+            console.log('📤 Subiendo comprobante...');
             const fileName = `${Date.now()}_${receiptFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
             
             const { error: uploadError } = await supabase
@@ -521,7 +626,7 @@ async function handleCreateReservation(e) {
                 .upload(fileName, receiptFile);
             
             if (uploadError) {
-                console.error('Error uploading receipt:', uploadError);
+                console.error('Error subiendo comprobante:', uploadError);
                 throw new Error('Error al subir comprobante: ' + uploadError.message);
             }
             
@@ -531,7 +636,7 @@ async function handleCreateReservation(e) {
                 .getPublicUrl(fileName);
             
             receiptUrl = publicUrl;
-            console.log('Comprobante subido:', receiptUrl);
+            console.log('✅ Comprobante subido:', receiptUrl);
         }
 
         // 3. CREAR RESERVA
@@ -552,11 +657,11 @@ async function handleCreateReservation(e) {
             status: status === 'confirmed' ? 'confirmed' : 'pending',
             payment_status: initialPayment >= totalAmount ? 'paid' : (initialPayment > 0 ? 'partial' : 'pending'),
             source: 'walk_in',
-            notes: document.getElementById('reservation-notes')?.value || null,
+            notes: document.getElementById('reservation-notes')?.value?.trim() || null,
             created_by: currentUser?.id
         };
         
-        console.log('Creando reserva:', reservationInsert);
+        console.log('📝 Creando reserva:', reservationInsert);
         
         const { data: reservation, error: resError } = await supabase
             .from('reservations')
@@ -565,11 +670,11 @@ async function handleCreateReservation(e) {
             .single();
         
         if (resError) {
-            console.error('Error creating reservation:', resError);
+            console.error('Error creando reserva:', resError);
             throw new Error('Error al crear reserva: ' + resError.message);
         }
         
-        console.log('Reserva creada:', reservation);
+        console.log('✅ Reserva creada:', reservation.id);
 
         // 4. REGISTRAR PAGO INICIAL SI HAY
         if (initialPayment > 0) {
@@ -583,26 +688,30 @@ async function handleCreateReservation(e) {
                 created_by: currentUser?.id
             };
             
-            console.log('Registrando pago:', paymentData);
+            console.log('💰 Registrando pago:', paymentData);
             
             const { error: payError } = await supabase
                 .from('payments')
                 .insert([paymentData]);
             
             if (payError) {
-                console.error('Error creating payment:', payError);
-                // No lanzamos error aquí, la reserva ya está creada
-                showToast('Reserva creada pero hubo error al registrar el pago', 'warning');
+                console.error('Error registrando pago:', payError);
+                // No lanzamos error, la reserva ya está creada
+                showToast('⚠️ Reserva creada pero hubo error al registrar el pago', 'warning');
+            } else {
+                console.log('✅ Pago registrado');
             }
         }
 
-        showToast('✅ Reserva creada exitosamente', 'success');
+        showToast('🎉 Reserva creada exitosamente', 'success');
+        
+        // Limpiar y volver a lista
         resetReservationForm();
         showReservations();
         
     } catch (error) {
-        console.error('Error completo:', error);
-        showToast('❌ Error: ' + error.message, 'error');
+        console.error('❌ Error completo:', error);
+        showToast('Error: ' + error.message, 'error');
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -612,7 +721,7 @@ async function handleCreateReservation(e) {
 }
 
 // =====================================================
-// LISTA Y GESTIÓN DE RESERVAS
+// LISTA Y GESTIÓN DE RESERVAS EXISTENTES
 // =====================================================
 
 async function loadReservationsByDate() {
@@ -620,23 +729,27 @@ async function loadReservationsByDate() {
     const list = document.getElementById('reservations-list');
     
     const date = dateInput?.value;
-    if (!date) return;
+    if (!date) {
+        console.log('No hay fecha seleccionada');
+        return;
+    }
     
-    if (list) list.innerHTML = '<p>Cargando...</p>';
+    if (list) list.innerHTML = '<p>⏳ Cargando...</p>';
     
     try {
         const { data: reservations, error } = await supabase
             .from('reservations')
-            .select('*, guest:guest_id(full_name), room:room_id(number, name), bed:bed_id(bed_number, room:room_id(number))')
+            .select(`
+                *,
+                guest:guest_id(full_name),
+                room:room_id(number, name),
+                bed:bed_id(bed_number, room:room_id(number))
+            `)
             .or(`check_in_date.eq.${date},check_out_date.eq.${date}`)
             .is('deleted_at', null)
             .order('created_at', { ascending: false });
         
-        if (error) {
-            console.error('Error loading reservations:', error);
-            if (list) list.innerHTML = '<p>Error cargando reservas</p>';
-            return;
-        }
+        if (error) throw error;
 
         if (!reservations || reservations.length === 0) {
             if (list) list.innerHTML = '<p class="text-muted">No hay reservas para esta fecha</p>';
@@ -653,11 +766,13 @@ async function loadReservationsByDate() {
                 
             const card = document.createElement('div');
             card.className = `reservation-card status-${res.status}`;
+            card.style.cursor = 'pointer';
             card.onclick = () => showReservationDetail(res.id);
+            
             card.innerHTML = `
                 <div class="reservation-header">
                     <span class="reservation-guest">${esc(res.guest?.full_name)}</span>
-                    <span class="badge" style="background: ${isCheckin ? '#d1fae5' : '#fee2e2'}; color: ${isCheckin ? '#065f46' : '#991b1b'}">
+                    <span class="badge" style="background: ${isCheckin ? '#d1fae5' : '#fee2e2'}; color: ${isCheckin ? '#065f46' : '#991b1b'};">
                         ${isCheckin ? 'CHECK-IN' : 'CHECK-OUT'}
                     </span>
                 </div>
@@ -672,12 +787,13 @@ async function loadReservationsByDate() {
                     <span>${formatCurrency(res.total_amount)}</span>
                 </div>
             `;
+            
             if (list) list.appendChild(card);
         });
         
     } catch (error) {
-        console.error('Error:', error);
-        if (list) list.innerHTML = '<p>Error inesperado</p>';
+        console.error('Error cargando reservas:', error);
+        if (list) list.innerHTML = '<p class="error">Error al cargar reservas</p>';
     }
 }
 
@@ -685,6 +801,8 @@ function showTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
     const tabBtn = document.getElementById(`tab-${tab}`);
     if (tabBtn) tabBtn.classList.add('active');
+    
+    // Recargar con el filtro correspondiente
     loadReservationsByDate();
 }
 
@@ -692,12 +810,18 @@ async function showReservationDetail(reservationId) {
     try {
         const { data: res, error } = await supabase
             .from('reservations')
-            .select('*, guest:guest_id(*), room:room_id(*), bed:bed_id(*, room:room_id(*)), payments(*)')
+            .select(`
+                *,
+                guest:guest_id(*),
+                room:room_id(*),
+                bed:bed_id(*, room:room_id(*)),
+                payments(*)
+            `)
             .eq('id', reservationId)
             .single();
         
         if (error || !res) {
-            showToast('Error cargando detalle', 'error');
+            showToast('Error cargando detalle de reserva', 'error');
             return;
         }
 
@@ -709,52 +833,138 @@ async function showReservationDetail(reservationId) {
         if (content) {
             content.innerHTML = `
                 <div class="detail-section">
-                    <h4>Información General</h4>
-                    <div class="detail-row"><span class="detail-label">Huésped</span><span class="detail-value">${esc(res.guest?.full_name)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${esc(res.guest?.email || 'N/A')}</span></div>
-                    <div class="detail-row"><span class="detail-label">Teléfono</span><span class="detail-value">${esc(res.guest?.phone || 'N/A')}</span></div>
-                    <div class="detail-row"><span class="detail-label">Documento</span><span class="detail-value">${esc(res.guest?.document_type || 'N/A')}: ${esc(res.guest?.document_id || 'N/A')}</span></div>
+                    <h4>👤 Información del Huésped</h4>
+                    <div class="detail-row">
+                        <span class="detail-label">Nombre</span>
+                        <span class="detail-value">${esc(res.guest?.full_name)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Email</span>
+                        <span class="detail-value">${esc(res.guest?.email || 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Teléfono</span>
+                        <span class="detail-value">${esc(res.guest?.phone || 'N/A')}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Nacionalidad</span>
+                        <span class="detail-value">${esc(res.guest?.nationality)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Documento</span>
+                        <span class="detail-value">${esc(res.guest?.document_type)}: ${esc(res.guest?.document_id)}</span>
+                    </div>
                 </div>
+                
                 <div class="detail-section">
-                    <h4>Alojamiento</h4>
-                    <div class="detail-row"><span class="detail-label">Ubicación</span><span class="detail-value">${esc(location)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Entrada</span><span class="detail-value">${formatDate(res.check_in_date)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Salida</span><span class="detail-value">${formatDate(res.check_out_date)}</span></div>
+                    <h4>🏨 Alojamiento</h4>
+                    <div class="detail-row">
+                        <span class="detail-label">Ubicación</span>
+                        <span class="detail-value">${esc(location)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Entrada</span>
+                        <span class="detail-value">${formatDate(res.check_in_date)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Salida</span>
+                        <span class="detail-value">${formatDate(res.check_out_date)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Noches</span>
+                        <span class="detail-value">${calculateNights(res.check_in_date, res.check_out_date)}</span>
+                    </div>
                 </div>
+                
                 <div class="detail-section">
-                    <h4>Pagos</h4>
-                    <div class="detail-row"><span class="detail-label">Total</span><span class="detail-value">${formatCurrency(res.total_amount)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Pagado</span><span class="detail-value">${formatCurrency(res.amount_paid)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Pendiente</span><span class="detail-value" style="color: ${res.balance_due > 0 ? 'var(--danger)' : 'var(--success)'}">${formatCurrency(res.balance_due)}</span></div>
-                    ${res.payments?.map(p => `<div class="detail-row" style="font-size:0.875rem;"><span class="detail-label">${formatDateTime(p.created_at)} - ${p.payment_method}</span><span class="detail-value">${formatCurrency(p.amount)}</span></div>`).join('') || ''}
+                    <h4>💰 Pagos</h4>
+                    <div class="detail-row">
+                        <span class="detail-label">Total</span>
+                        <span class="detail-value">${formatCurrency(res.total_amount)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Pagado</span>
+                        <span class="detail-value">${formatCurrency(res.amount_paid)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Pendiente</span>
+                        <span class="detail-value" style="color: ${res.balance_due > 0 ? 'var(--danger)' : 'var(--success)'}">
+                            ${formatCurrency(res.balance_due)}
+                        </span>
+                    </div>
+                    ${res.payments?.length ? '<hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--gray-200);">' : ''}
+                    ${res.payments?.map(p => `
+                        <div class="detail-row" style="font-size: 0.875rem;">
+                            <span class="detail-label">${formatDateTime(p.created_at)} - ${p.payment_method}</span>
+                            <span class="detail-value">${formatCurrency(p.amount)}</span>
+                        </div>
+                    `).join('') || ''}
                 </div>
-                ${res.notes ? `<div class="detail-section"><h4>Notas</h4><p style="font-size:0.875rem;color:var(--gray-600);">${esc(res.notes)}</p></div>` : ''}
+                
+                ${res.notes ? `
+                <div class="detail-section">
+                    <h4>📝 Notas</h4>
+                    <p style="font-size: 0.875rem; color: var(--gray-600); white-space: pre-wrap;">${esc(res.notes)}</p>
+                </div>
+                ` : ''}
             `;
         }
         
+        // Configurar botones de acción según estado
         const actions = document.getElementById('detail-actions');
         if (actions) {
             actions.innerHTML = '';
+            
             if (res.status === 'confirmed') {
-                actions.innerHTML += `<button onclick="doCheckIn('${res.id}')" class="btn btn-primary">Check-in</button>`;
+                actions.innerHTML += `
+                    <button onclick="doCheckIn('${res.id}')" class="btn btn-primary">
+                        ✅ Check-in
+                    </button>
+                `;
             }
+            
             if (res.status === 'checked_in') {
-                actions.innerHTML += `<button onclick="doCheckOut('${res.id}')" class="btn btn-warning">Check-out</button>`;
+                actions.innerHTML += `
+                    <button onclick="doCheckOut('${res.id}')" class="btn btn-warning">
+                        🚪 Check-out
+                    </button>
+                `;
+                
                 if (res.balance_due > 0) {
-                    actions.innerHTML += `<button onclick="addPayment('${res.id}')" class="btn btn-success">Registrar pago</button>`;
+                    actions.innerHTML += `
+                        <button onclick="showAddPaymentModal('${res.id}')" class="btn btn-success">
+                            💵 Registrar pago
+                        </button>
+                    `;
                 }
             }
+            
             if (res.status !== 'cancelled' && res.status !== 'checked_out') {
-                actions.innerHTML += `<button onclick="cancelReservation('${res.id}')" class="btn btn-danger">Cancelar</button>`;
+                actions.innerHTML += `
+                    <button onclick="cancelReservation('${res.id}')" class="btn btn-danger">
+                        ❌ Cancelar
+                    </button>
+                `;
             }
         }
         
         showPage('reservation-detail-page');
         
     } catch (error) {
-        console.error('Error:', error);
-        showToast('Error cargando detalle', 'error');
+        console.error('Error mostrando detalle:', error);
+        showToast('Error cargando detalle de reserva', 'error');
     }
+}
+
+/**
+ * Calcular número de noches entre dos fechas
+ */
+function calculateNights(checkIn, checkOut) {
+    if (!checkIn || !checkOut) return 0;
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    const diffTime = Math.abs(end - start);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
 async function doCheckIn(reservationId) {
@@ -766,9 +976,10 @@ async function doCheckIn(reservationId) {
         
         if (error) throw error;
         
-        showToast('✅ Check-in realizado', 'success');
+        showToast('✅ Check-in realizado correctamente', 'success');
         showReservations();
     } catch (error) {
+        console.error('Error en check-in:', error);
         showToast('❌ Error en check-in: ' + error.message, 'error');
     }
 }
@@ -785,12 +996,15 @@ async function doCheckOut(reservationId) {
         showToast('✅ Check-out realizado - Tarea de limpieza creada', 'success');
         showReservations();
     } catch (error) {
+        console.error('Error en check-out:', error);
         showToast('❌ Error en check-out: ' + error.message, 'error');
     }
 }
 
 async function cancelReservation(reservationId) {
-    if (!confirm('¿Estás seguro de cancelar esta reserva?')) return;
+    if (!confirm('¿Estás seguro de cancelar esta reserva?\n\nEsta acción no se puede deshacer.')) {
+        return;
+    }
     
     try {
         const { error } = await supabase
@@ -806,46 +1020,21 @@ async function cancelReservation(reservationId) {
         showToast('✅ Reserva cancelada', 'success');
         showReservations();
     } catch (error) {
+        console.error('Error cancelando:', error);
         showToast('❌ Error al cancelar: ' + error.message, 'error');
     }
 }
 
-// =====================================================
-// FUNCIONES AUXILIARES GLOBALES (si no existen en app.js)
-// =====================================================
-
-function esc(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+/**
+ * Mostrar modal para agregar pago (placeholder - implementar si se necesita)
+ */
+function showAddPaymentModal(reservationId) {
+    // Implementar modal de pago si es necesario
+    const amount = prompt('Monto del pago:');
+    if (!amount || isNaN(amount)) return;
+    
+    // Aquí iría la lógica para registrar el pago
+    showToast('Función de pago en desarrollo', 'info');
 }
 
-function formatDate(dateStr) {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-ES', { 
-        day: '2-digit', 
-        month: 'short', 
-        year: 'numeric' 
-    });
-}
-
-function formatDateTime(dateStr) {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleString('es-ES', { 
-        day: '2-digit', 
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-function formatCurrency(amount) {
-    const num = parseFloat(amount) || 0;
-    return '$' + num.toFixed(2);
-}
+console.log('✅ reservations.js cargado correctamente');
