@@ -208,17 +208,8 @@ async function loadCashHistory() {
     } catch (error) {
         console.error('Error loading history:', error);
     }
-}
 // =============================
-// EXPORTS
-// =============================
-window.loadFinances = loadFinances;
-window.loadCashBalance = loadCashBalance;
-window.registerCashIncome = registerCashIncome;
-window.adjustCashBalance = adjustCashBalance;
-
-// =============================
-// INIT FINANCES
+// INIT FINANCES (VA PRIMERO)
 // =============================
 async function loadFinances() {
     try {
@@ -228,3 +219,11 @@ async function loadFinances() {
         console.error('Error loading finances:', error);
     }
 }
+
+// =============================
+// EXPORTS (SIEMPRE AL FINAL)
+// =============================
+window.loadFinances = loadFinances;
+window.loadCashBalance = loadCashBalance;
+window.registerCashIncome = registerCashIncome;
+window.adjustCashBalance = adjustCashBalance;
