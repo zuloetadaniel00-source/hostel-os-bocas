@@ -1,10 +1,26 @@
 // =====================================================
-// FINANZAS / CAJA - Actualizado con todas las mejoras
+// FINANZAS / CAJA - OPTIMIZADO
 // =====================================================
 
 let paymentChart = null;
+let chartLoaded = false;
 
-// MEJORA 6: Cargar saldo de caja (para Volunteer y Admin)
+// Cargar Chart.js dinámicamente solo cuando se necesita
+async function loadChartJS() {
+    if (chartLoaded) return;
+    
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        script.onload = () => {
+            chartLoaded = true;
+            resolve();
+        };
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
 async function loadCashBalance() {
     try {
         const { data, error } = await db
@@ -17,23 +33,23 @@ async function loadCashBalance() {
         if (error && error.code !== 'PGRST116') throw error;
         
         const balance = data?.current_balance || 0;
-        document.getElementById('current-cash-balance').textContent = formatCurrency(balance);
+        const el = document.getElementById('current-cash-balance');
+        if (el) el.textContent = formatCurrency(balance);
         
-        // Si es admin, cargar historial
         if (currentProfile?.role === 'admin') {
             loadCashHistory();
         }
         
     } catch (error) {
         console.error('Error loading cash:', error);
-        document.getElementById('current-cash-balance').textContent = '$0.00';
+        const el = document.getElementById('current-cash-balance');
+        if (el) el.textContent = '$0.00';
     }
 }
 
-// MEJORA 6: Registrar ingreso en efectivo (Volunteer)
 async function registerCashIncome() {
-    const amount = parseFloat(document.getElementById('cash-income-amount').value);
-    const concept = document.getElementById('cash-income-concept').value;
+    const amount = parseFloat(document.getElementById('cash-income-amount')?.value);
+    const concept = document.getElementById('cash-income-concept')?.value;
     
     if (!amount || amount <= 0) {
         showToast('Ingresa un monto válido', 'error');
@@ -41,7 +57,6 @@ async function registerCashIncome() {
     }
     
     try {
-        // Registrar transacción
         const { error: transError } = await db.from('transactions').insert([{
             type: 'income',
             category: 'manual_entry',
@@ -54,7 +69,6 @@ async function registerCashIncome() {
         
         if (transError) throw transError;
         
-        // Actualizar caja
         await window.updateCashBalance(amount, 'add');
         
         showToast('Ingreso registrado', 'success');
@@ -67,10 +81,9 @@ async function registerCashIncome() {
     }
 }
 
-// MEJORA 7: Ajustar saldo de caja (Admin)
 async function adjustCashBalance() {
-    const newAmount = parseFloat(document.getElementById('cash-adjust-amount').value);
-    const reason = document.getElementById('cash-adjust-reason').value;
+    const newAmount = parseFloat(document.getElementById('cash-adjust-amount')?.value);
+    const reason = document.getElementById('cash-adjust-reason')?.value;
     
     if (isNaN(newAmount) || newAmount < 0) {
         showToast('Ingresa un monto válido', 'error');
@@ -78,7 +91,6 @@ async function adjustCashBalance() {
     }
     
     try {
-        // Obtener saldo actual
         const { data: current } = await db
             .from('cash_register')
             .select('current_balance')
@@ -89,7 +101,6 @@ async function adjustCashBalance() {
         const currentBalance = current?.current_balance || 0;
         const difference = newAmount - currentBalance;
         
-        // Registrar ajuste en cash_register
         await db.from('cash_register').insert({
             previous_balance: currentBalance,
             new_balance: newAmount,
@@ -99,7 +110,6 @@ async function adjustCashBalance() {
             created_at: new Date().toISOString()
         });
         
-        // Registrar transacción si hay diferencia
         if (difference !== 0) {
             await db.from('transactions').insert([{
                 type: difference > 0 ? 'income' : 'expense',
@@ -122,7 +132,6 @@ async function adjustCashBalance() {
     }
 }
 
-// Cargar historial de ajustes (Admin)
 async function loadCashHistory() {
     try {
         const { data, error } = await db
@@ -134,6 +143,8 @@ async function loadCashHistory() {
         if (error) throw error;
         
         const container = document.getElementById('adjust-history-list');
+        if (!container) return;
+        
         if (!data?.length) {
             container.innerHTML = '<p class="text-muted">Sin ajustes recientes</p>';
             return;
@@ -158,19 +169,14 @@ async function loadCashHistory() {
     }
 }
 
-// MEJORA 1, 2, 3: Finanzas con gráfico, hora y rango de fechas
 async function loadFinances() {
-    const fromDate = document.getElementById('finance-date-from').value;
-    const toDate = document.getElementById('finance-date-to').value;
+    const fromDate = document.getElementById('finance-date-from')?.value;
+    const toDate = document.getElementById('finance-date-to')?.value;
     
     if (!fromDate || !toDate) {
         showToast('Selecciona un rango de fechas', 'error');
         return;
     }
-    
-    // Ajustar toDate para incluir todo el día
-    const adjustedToDate = new Date(toDate);
-    adjustedToDate.setHours(23, 59, 59);
     
     try {
         const { data: transactions, error } = await db
@@ -184,8 +190,11 @@ async function loadFinances() {
         if (error) throw error;
         
         calculateStats(transactions || []);
-        createPaymentChart(transactions || []);
         displayTransactions(transactions || []);
+        
+        // Cargar Chart.js solo cuando se necesita
+        await loadChartJS();
+        createPaymentChart(transactions || []);
         
     } catch (error) {
         console.error('Error loading finances:', error);
@@ -202,12 +211,15 @@ function calculateStats(transactions) {
         else totalExpense += parseFloat(t.amount);
     });
     
-    document.getElementById('total-income').textContent = formatCurrency(totalIncome);
-    document.getElementById('total-expense').textContent = formatCurrency(totalExpense);
-    document.getElementById('total-balance').textContent = formatCurrency(totalIncome - totalExpense);
+    const incomeEl = document.getElementById('total-income');
+    const expenseEl = document.getElementById('total-expense');
+    const balanceEl = document.getElementById('total-balance');
+    
+    if (incomeEl) incomeEl.textContent = formatCurrency(totalIncome);
+    if (expenseEl) expenseEl.textContent = formatCurrency(totalExpense);
+    if (balanceEl) balanceEl.textContent = formatCurrency(totalIncome - totalExpense);
 }
 
-// MEJORA 1: Gráfico por método de pago
 function createPaymentChart(transactions) {
     const byMethod = { cash: 0, yappy: 0, card: 0 };
     
@@ -218,7 +230,7 @@ function createPaymentChart(transactions) {
     });
     
     const ctx = document.getElementById('payment-method-chart');
-    if (!ctx) return;
+    if (!ctx || typeof Chart === 'undefined') return;
     
     if (paymentChart) {
         paymentChart.destroy();
@@ -232,9 +244,9 @@ function createPaymentChart(transactions) {
                 label: 'Ingresos',
                 data: [byMethod.cash, byMethod.yappy, byMethod.card],
                 backgroundColor: [
-                    'rgba(16, 185, 129, 0.6)',  // Verde efectivo
-                    'rgba(245, 158, 11, 0.6)',   // Amarillo yappy
-                    'rgba(59, 130, 246, 0.6)'    // Azul tarjeta
+                    'rgba(16, 185, 129, 0.6)',
+                    'rgba(245, 158, 11, 0.6)',
+                    'rgba(59, 130, 246, 0.6)'
                 ],
                 borderColor: [
                     'rgb(16, 185, 129)',
@@ -247,42 +259,38 @@ function createPaymentChart(transactions) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
-            },
+            plugins: { legend: { display: false } },
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '$' + value;
-                        }
-                    }
+                    ticks: { callback: (value) => '$' + value }
                 }
             }
         }
     });
     
-    // Mostrar totales numéricos
-    document.getElementById('payment-method-totals').innerHTML = `
-        <div style="background: rgba(16,185,129,0.1); padding: 0.5rem; border-radius: var(--radius);">
-            <div style="font-size: 0.75rem; color: var(--gray-500);">Efectivo</div>
-            <div style="font-weight: 600; color: var(--success);">${formatCurrency(byMethod.cash)}</div>
-        </div>
-        <div style="background: rgba(245,158,11,0.1); padding: 0.5rem; border-radius: var(--radius);">
-            <div style="font-size: 0.75rem; color: var(--gray-500);">Yappy</div>
-            <div style="font-weight: 600; color: var(--warning);">${formatCurrency(byMethod.yappy)}</div>
-        </div>
-        <div style="background: rgba(59,130,246,0.1); padding: 0.5rem; border-radius: var(--radius);">
-            <div style="font-size: 0.75rem; color: var(--gray-500);">Tarjeta</div>
-            <div style="font-weight: 600; color: var(--info);">${formatCurrency(byMethod.card)}</div>
-        </div>
-    `;
+    const totalsDiv = document.getElementById('payment-method-totals');
+    if (totalsDiv) {
+        totalsDiv.innerHTML = `
+            <div style="background: rgba(16,185,129,0.1); padding: 0.5rem; border-radius: var(--radius);">
+                <div style="font-size: 0.75rem; color: var(--gray-500);">Efectivo</div>
+                <div style="font-weight: 600; color: var(--success);">${formatCurrency(byMethod.cash)}</div>
+            </div>
+            <div style="background: rgba(245,158,11,0.1); padding: 0.5rem; border-radius: var(--radius);">
+                <div style="font-size: 0.75rem; color: var(--gray-500);">Yappy</div>
+                <div style="font-weight: 600; color: var(--warning);">${formatCurrency(byMethod.yappy)}</div>
+            </div>
+            <div style="background: rgba(59,130,246,0.1); padding: 0.5rem; border-radius: var(--radius);">
+                <div style="font-size: 0.75rem; color: var(--gray-500);">Tarjeta</div>
+                <div style="font-weight: 600; color: var(--info);">${formatCurrency(byMethod.card)}</div>
+            </div>
+        `;
+    }
 }
 
-// MEJORA 2: Mostrar fecha y hora
 function displayTransactions(transactions) {
     const list = document.getElementById('transactions-list');
+    if (!list) return;
     
     if (!transactions.length) {
         list.innerHTML = '<p class="text-muted">No hay movimientos</p>';
@@ -294,12 +302,14 @@ function displayTransactions(transactions) {
         const dateStr = date.toLocaleDateString('es-PA');
         const timeStr = date.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' });
         
+        const methods = { cash: '💵 Efectivo', yappy: '📱 Yappy', card: '💳 Tarjeta' };
+        
         return `
             <div class="transaction-item">
                 <div class="transaction-info">
                     <div class="transaction-desc">${esc(t.description)}</div>
                     <div class="transaction-meta">
-                        ${dateStr} ${timeStr} • ${t.category} • ${formatPaymentMethod(t.payment_method)}
+                        ${dateStr} ${timeStr} • ${t.category} • ${methods[t.payment_method] || t.payment_method}
                     </div>
                 </div>
                 <span class="transaction-amount ${t.type}">
@@ -310,16 +320,6 @@ function displayTransactions(transactions) {
     }).join('');
 }
 
-function formatPaymentMethod(method) {
-    const methods = {
-        'cash': '💵 Efectivo',
-        'yappy': '📱 Yappy',
-        'card': '💳 Tarjeta'
-    };
-    return methods[method] || method;
-}
-
-// Modal nuevo movimiento
 function showNewTransactionModal() {
     showModal('new-transaction-modal');
 }
@@ -327,24 +327,23 @@ function showNewTransactionModal() {
 document.getElementById('new-transaction-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const type = document.querySelector('input[name="trans-type"]:checked').value;
-    const amount = parseFloat(document.getElementById('trans-amount').value);
-    const method = document.getElementById('trans-method').value;
+    const type = document.querySelector('input[name="trans-type"]:checked')?.value;
+    const amount = parseFloat(document.getElementById('trans-amount')?.value);
+    const method = document.getElementById('trans-method')?.value;
     
     try {
         const { error } = await db.from('transactions').insert([{
             type: type,
-            category: document.getElementById('trans-category').value,
+            category: document.getElementById('trans-category')?.value,
             amount: amount,
             payment_method: method,
-            description: document.getElementById('trans-description').value,
+            description: document.getElementById('trans-description')?.value,
             shift_date: new Date().toISOString().split('T')[0],
             created_by: currentUser.id
         }]);
         
         if (error) throw error;
         
-        // Actualizar caja si es efectivo
         if (method === 'cash' && window.updateCashBalance) {
             await window.updateCashBalance(amount, type === 'income' ? 'add' : 'subtract');
         }
@@ -358,7 +357,6 @@ document.getElementById('new-transaction-form')?.addEventListener('submit', asyn
     }
 });
 
-// Exponer funciones
 window.loadFinances = loadFinances;
 window.loadCashBalance = loadCashBalance;
 window.registerCashIncome = registerCashIncome;
