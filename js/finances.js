@@ -137,3 +137,4 @@ window.loadFinances = loadFinances;
 window.loadCashBalance = loadCashBalance;
 window.registerCashIncome = registerCashIncome;
 window.adjustCashBalance = adjustCashBalance;
+
