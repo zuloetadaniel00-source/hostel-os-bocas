@@ -209,7 +209,7 @@ async function loadCashHistory() {
         console.error('Error loading history:', error);
     }
 // =============================
-// INIT FINANCES (VA PRIMERO)
+// INIT FINANCES
 // =============================
 async function loadFinances() {
     try {
@@ -221,7 +221,7 @@ async function loadFinances() {
 }
 
 // =============================
-// EXPORTS (SIEMPRE AL FINAL)
+// EXPORTS
 // =============================
 window.loadFinances = loadFinances;
 window.loadCashBalance = loadCashBalance;
