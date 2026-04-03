@@ -123,7 +123,7 @@ async function loadFinances() {
 async function loadFinanceSummary() {
     try {
         const dateFrom = document.getElementById('finance-date-from')?.value;
-        const dateTo = document.getElementById('finance-date-to')?.value;
+        const dateTo   = document.getElementById('finance-date-to')?.value;
 
         let query = db.from('transactions').select('*');
         if (dateFrom) query = query.gte('created_at', dateFrom + 'T00:00:00');
@@ -133,8 +133,6 @@ async function loadFinanceSummary() {
         if (error) throw error;
 
         const transactions = data || [];
-
-        // Calcular totales
         let totalIncome  = 0;
         let totalExpense = 0;
         const methodTotals = { cash: 0, yappy: 0, card: 0 };
@@ -153,7 +151,6 @@ async function loadFinanceSummary() {
 
         const balance = totalIncome - totalExpense;
 
-        // Actualizar tarjetas
         const setEl = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.textContent = formatCurrency(val);
@@ -162,13 +159,11 @@ async function loadFinanceSummary() {
         setEl('total-expense', totalExpense);
         setEl('total-balance', balance);
 
-        // Color del balance
         const balanceEl = document.getElementById('total-balance');
         if (balanceEl) {
-            balanceEl.style.color = balance >= 0 ? 'var(--success)' : 'var(--danger, #ef4444)';
+            balanceEl.style.color = balance >= 0 ? 'var(--success)' : '#ef4444';
         }
 
-        // Renderizar totales por método
         const totalsContainer = document.getElementById('payment-method-totals');
         if (totalsContainer) {
             totalsContainer.innerHTML =
@@ -186,7 +181,6 @@ async function loadFinanceSummary() {
                 '</div>';
         }
 
-        // Gráfico
         renderPaymentChart(methodTotals);
 
     } catch (error) {
@@ -196,13 +190,11 @@ async function loadFinanceSummary() {
 }
 
 // =============================
-// GRÁFICO DE MÉTODOS DE PAGO
+// GRÁFICO
 // =============================
 function renderPaymentChart(methodTotals) {
     const canvas = document.getElementById('payment-method-chart');
     if (!canvas) return;
-
-    // Cargar Chart.js si no está disponible
     if (typeof Chart === 'undefined') {
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
@@ -214,28 +206,13 @@ function renderPaymentChart(methodTotals) {
 }
 
 function buildChart(canvas, methodTotals) {
-    // Destruir gráfico anterior si existe
-    if (paymentChart) {
-        paymentChart.destroy();
-        paymentChart = null;
-    }
-
+    if (paymentChart) { paymentChart.destroy(); paymentChart = null; }
     const total = methodTotals.cash + methodTotals.yappy + methodTotals.card;
-
     if (total === 0) {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        canvas.parentElement.querySelector('canvas + *')?.remove();
-        const msg = document.createElement('p');
-        msg.style.cssText = 'text-align:center;color:var(--gray-400);font-size:0.875rem;padding:1rem 0;';
-        msg.textContent = 'Sin datos para el rango seleccionado';
-        canvas.insertAdjacentElement('afterend', msg);
         canvas.style.display = 'none';
         return;
     }
-
     canvas.style.display = 'block';
-
     paymentChart = new Chart(canvas, {
         type: 'doughnut',
         data: {
@@ -272,7 +249,6 @@ function buildChart(canvas, methodTotals) {
 async function loadTransactions() {
     const container = document.getElementById('transactions-list');
     if (!container) return;
-
     container.innerHTML = '<p style="color:var(--gray-400);text-align:center;padding:1rem;">Cargando...</p>';
 
     try {
@@ -291,6 +267,7 @@ async function loadTransactions() {
             return;
         }
 
+        const isAdmin = currentProfile?.role === 'admin';
         let html = '';
         data.forEach(t => {
             const isIncome  = t.type === 'income';
@@ -300,14 +277,16 @@ async function loadTransactions() {
             const methodIcon = method === 'yappy' ? '📱' : method === 'card' ? '💳' : '💵';
             const color     = isIncome ? '#22c55e' : '#ef4444';
             const sign      = isIncome ? '+' : '-';
-            const category  = t.category || '';
 
             html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--gray-100);">'
                 + '<div style="flex:1;">'
-                    + '<div style="font-size:0.875rem;font-weight:500;">' + esc(t.description || category) + '</div>'
+                    + '<div style="font-size:0.875rem;font-weight:500;">' + esc(t.description || t.category) + '</div>'
                     + '<div style="font-size:0.75rem;color:var(--gray-400);">' + fecha + ' ' + methodIcon + '</div>'
                 + '</div>'
-                + '<div style="font-weight:700;color:' + color + ';">' + sign + '$' + amount.toFixed(2) + '</div>'
+                + '<div style="display:flex;align-items:center;gap:0.75rem;">'
+                    + '<span style="font-weight:700;color:' + color + ';">' + sign + '$' + amount.toFixed(2) + '</span>'
+                    + (isAdmin ? '<button onclick="deleteTransaction(\'' + t.id + '\')" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0.25rem;" title="Eliminar">🗑️</button>' : '')
+                + '</div>'
                 + '</div>';
         });
 
@@ -316,6 +295,23 @@ async function loadTransactions() {
     } catch (error) {
         console.error('Error loading transactions:', error);
         container.innerHTML = '<p style="color:#ef4444;text-align:center;padding:1rem;">Error cargando transacciones</p>';
+    }
+}
+
+// =============================
+// ELIMINAR TRANSACCIÓN (ADMIN)
+// =============================
+async function deleteTransaction(id) {
+    if (!confirm('¿Eliminar este movimiento permanentemente?')) return;
+    try {
+        const { error } = await db.from('transactions').delete().eq('id', id);
+        if (error) throw error;
+        showToast('Movimiento eliminado', 'success');
+        await loadFinanceSummary();
+        await loadTransactions();
+    } catch (error) {
+        console.error('Error deleting transaction:', error);
+        showToast('Error al eliminar: ' + error.message, 'error');
     }
 }
 
@@ -347,7 +343,6 @@ async function saveTransaction() {
         showToast('Completa todos los campos', 'error');
         return;
     }
-
     try {
         const { error } = await db.from('transactions').insert({
             type,
@@ -355,22 +350,17 @@ async function saveTransaction() {
             category,
             payment_method: method,
             description,
-            user_id: currentUser.id,
+            created_by: currentUser.id,
+            shift_date: new Date().toISOString().split('T')[0],
             created_at: new Date().toISOString()
         });
         if (error) throw error;
-
         showToast('Movimiento guardado', 'success');
         closeModal();
-
-        // Limpiar form
         document.getElementById('trans-amount').value = '';
         document.getElementById('trans-description').value = '';
-
-        // Recargar
         await loadFinanceSummary();
         await loadTransactions();
-
     } catch (error) {
         console.error('Error saving transaction:', error);
         showToast(error.message || 'Error al guardar', 'error');
@@ -380,9 +370,10 @@ async function saveTransaction() {
 // =============================
 // EXPORTS
 // =============================
-window.loadFinances         = loadFinances;
-window.loadCashBalance      = loadCashBalance;
-window.registerCashIncome   = registerCashIncome;
-window.adjustCashBalance    = adjustCashBalance;
-window.loadTransactions     = loadTransactions;
+window.loadFinances            = loadFinances;
+window.loadCashBalance         = loadCashBalance;
+window.registerCashIncome      = registerCashIncome;
+window.adjustCashBalance       = adjustCashBalance;
+window.loadTransactions        = loadTransactions;
+window.deleteTransaction       = deleteTransaction;
 window.showNewTransactionModal = showNewTransactionModal;
