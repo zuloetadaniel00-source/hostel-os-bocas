@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hostel-OS Bocas</title>
     <link rel="stylesheet" href="css/styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <!-- LOGIN SCREEN -->
@@ -53,13 +54,18 @@
             <button onclick="showOperations()" class="nav-btn" data-page="operations">
                 <span class="nav-icon">🧹</span><span class="nav-label">Tareas</span>
             </button>
-            <button onclick="showFinances()" class="nav-btn" data-page="finances">
-                <span class="nav-icon">💰</span><span class="nav-label">Caja</span>
+            <!-- MEJORA 6: Volunteer y Admin ven Caja -->
+            <button onclick="showCashRegister()" class="nav-btn" data-page="cash" id="nav-cash">
+                <span class="nav-icon">💵</span><span class="nav-label">Caja</span>
+            </button>
+            <!-- MEJORA 6: Solo Admin ve Finanzas completas -->
+            <button onclick="showFinances()" class="nav-btn admin-only hidden" data-page="finances">
+                <span class="nav-icon">💰</span><span class="nav-label">Finanzas</span>
             </button>
         </nav>
 
         <main class="main-content" id="main-content">
-
+            
             <!-- DASHBOARD -->
             <div id="dashboard-page" class="page">
                 <div class="dashboard-header">
@@ -73,6 +79,7 @@
                         <div class="occupancy-numbers"><span id="occupied-beds">0</span> / <span id="total-beds">85</span> camas</div>
                     </div>
                 </div>
+
                 <div class="quick-stats">
                     <div class="stat-card" onclick="showTodayCheckins()">
                         <span class="stat-number" id="today-checkins">0</span>
@@ -87,10 +94,12 @@
                         <span class="stat-label">Ingresos hoy</span>
                     </div>
                 </div>
+
                 <div class="alerts-section">
                     <h4>⚠️ Alertas</h4>
                     <div id="alerts-list" class="alerts-list"><p class="text-muted">Cargando...</p></div>
                 </div>
+
                 <div class="upcoming-section">
                     <h4>📅 Próximas reservas</h4>
                     <div id="upcoming-list" class="reservations-list"><p class="text-muted">Cargando...</p></div>
@@ -121,6 +130,7 @@
                     <h3>Nueva Reserva - Paso 1/3</h3>
                 </div>
                 <div class="step-indicator"><div class="step active">1</div><div class="step">2</div><div class="step">3</div></div>
+                
                 <form id="step1-form" class="reservation-form">
                     <div class="form-group">
                         <label>Fecha entrada *</label>
@@ -149,17 +159,25 @@
                 </form>
             </div>
 
-            <!-- PASO 2 — Datos del huésped (simplificado) -->
+            <!-- MEJORA 4: PASO 2 - Campos simplificados -->
             <div id="new-reservation-step2" class="page hidden">
                 <div class="page-header">
                     <button onclick="goToStep(1)" class="btn btn-back">← Paso 1</button>
                     <h3>Datos del Huésped - Paso 2/3</h3>
                 </div>
                 <div class="step-indicator"><div class="step completed">✓</div><div class="step active">2</div><div class="step">3</div></div>
+                
                 <form id="step2-form" class="reservation-form">
-                    <div class="form-group"><label>Nombre completo *</label><input type="text" id="guest-name" required></div>
-                    <div class="form-group"><label>Email</label><input type="email" id="guest-email"></div>
-                    <div class="form-group"><label>Nacionalidad</label>
+                    <div class="form-group">
+                        <label>Nombre completo *</label>
+                        <input type="text" id="guest-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="guest-email">
+                    </div>
+                    <div class="form-group">
+                        <label>Nacionalidad</label>
                         <select id="guest-nationality">
                             <option value="">Seleccionar...</option>
                             <option value="Panamá">Panamá</option>
@@ -175,17 +193,21 @@
                             <option value="Otro">Otro</option>
                         </select>
                     </div>
+                    
+                    <!-- MEJORA 4: Foto con cámara o archivo -->
                     <div class="form-group">
                         <label>Foto del huésped</label>
-                        <div class="photo-upload-group">
-                            <label class="btn btn-secondary btn-photo" for="guest-photo-file">📁 Subir foto</label>
-                            <label class="btn btn-secondary btn-photo" for="guest-photo-camera">📷 Tomar foto</label>
-                            <input type="file" id="guest-photo-file" accept="image/*" style="display:none" onchange="previewGuestPhoto(this)">
-                            <input type="file" id="guest-photo-camera" accept="image/*" capture="environment" style="display:none" onchange="previewGuestPhoto(this)">
-                        </div>
+                        <input type="file" id="guest-photo" accept="image/*" capture="environment">
+                        <small style="color: var(--gray-500); display: block; margin-top: 0.25rem;">
+                            Toca para tomar foto o seleccionar imagen
+                        </small>
                         <div id="guest-photo-preview" class="receipt-preview hidden"></div>
                     </div>
-                    <div class="form-group"><label>Notas</label><textarea id="guest-notes" rows="2"></textarea></div>
+                    
+                    <div class="form-group">
+                        <label>Notas</label>
+                        <textarea id="guest-notes" rows="2"></textarea>
+                    </div>
                     <button type="submit" class="btn btn-primary btn-large">Continuar →</button>
                 </form>
             </div>
@@ -197,7 +219,9 @@
                     <h3>Pago - Paso 3/3</h3>
                 </div>
                 <div class="step-indicator"><div class="step completed">✓</div><div class="step completed">✓</div><div class="step active">3</div></div>
+                
                 <div class="reservation-summary" id="reservation-summary"></div>
+                
                 <form id="step3-form" class="reservation-form">
                     <div class="form-group highlight">
                         <label>Monto TOTAL *</label>
@@ -218,13 +242,8 @@
                         </div>
                     </div>
                     <div class="form-group hidden" id="receipt-upload-group">
-                        <label>Comprobante</label>
-                        <div class="photo-upload-group">
-                            <label class="btn btn-secondary btn-photo" for="payment-receipt-file">📁 Subir</label>
-                            <label class="btn btn-secondary btn-photo" for="payment-receipt-camera">📷 Foto</label>
-                            <input type="file" id="payment-receipt-file" accept="image/*" style="display:none" onchange="previewReceipt(this)">
-                            <input type="file" id="payment-receipt-camera" accept="image/*" capture="environment" style="display:none" onchange="previewReceipt(this)">
-                        </div>
+                        <label>Comprobante *</label>
+                        <input type="file" id="payment-receipt" accept="image/*" capture="environment">
                         <div id="receipt-preview" class="receipt-preview hidden"></div>
                     </div>
                     <div class="form-group">
@@ -242,21 +261,53 @@
             <div id="reservation-detail-page" class="page hidden">
                 <div class="page-header"><button onclick="goBack()" class="btn btn-back">← Volver</button><h3>Detalle</h3></div>
                 <div id="reservation-detail-content" class="detail-card"></div>
+                <!-- MEJORA 5: Botones de Editar y Cancelar en detalle -->
                 <div class="detail-actions" id="detail-actions"></div>
             </div>
 
-            <!-- EDITAR RESERVA -->
-            <div id="edit-reservation-page" class="page hidden">
-                <div class="page-header"><button onclick="showPage('reservation-detail-page')" class="btn btn-back">← Volver</button><h3>Editar Reserva</h3></div>
-                <form id="edit-reservation-form" class="reservation-form">
-                    <div class="form-group"><label>Fecha entrada *</label><input type="date" id="edit-check-in" required></div>
-                    <div class="form-group"><label>Fecha salida *</label><input type="date" id="edit-check-out" required></div>
-                    <div class="form-group"><label>Monto total *</label>
-                        <div class="input-prefix"><span class="prefix">$</span><input type="number" id="edit-total-amount" min="0" step="0.01" required></div>
+            <!-- MEJORA 6: CAJA (Volunteer y Admin) -->
+            <div id="cash-page" class="page hidden">
+                <div class="page-header">
+                    <h3>Caja</h3>
+                </div>
+                
+                <div class="cash-balance-display" style="background: var(--white); border-radius: var(--radius-lg); padding: 1.5rem; text-align: center; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <h4 style="color: var(--gray-500); font-size: 0.875rem; margin-bottom: 0.5rem;">Saldo Actual en Efectivo</h4>
+                    <div id="current-cash-balance" style="font-size: 2.5rem; font-weight: 700; color: var(--success);">$0.00</div>
+                </div>
+
+                <!-- Volunteer: Solo registrar ingresos -->
+                <div id="volunteer-cash-actions" class="cash-actions" style="background: var(--white); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <h4 style="margin-bottom: 1rem;">Registrar Ingreso en Efectivo</h4>
+                    <div class="form-group">
+                        <label>Monto</label>
+                        <div class="input-prefix"><span class="prefix">$</span><input type="number" id="cash-income-amount" min="0.01" step="0.01"></div>
                     </div>
-                    <div class="form-group"><label>Notas</label><textarea id="edit-notes" rows="3"></textarea></div>
-                    <button type="submit" class="btn btn-primary btn-large">Guardar cambios</button>
-                </form>
+                    <div class="form-group">
+                        <label>Concepto</label>
+                        <input type="text" id="cash-income-concept" placeholder="Ej: Pago reserva, Venta, etc.">
+                    </div>
+                    <button onclick="registerCashIncome()" class="btn btn-primary btn-large">Registrar Ingreso</button>
+                </div>
+
+                <!-- Admin: Ajustar saldo -->
+                <div id="admin-cash-actions" class="cash-actions hidden" style="background: var(--white); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <h4 style="margin-bottom: 1rem; color: var(--primary);">🔧 Ajustar Saldo de Caja (Admin)</h4>
+                    <div class="form-group">
+                        <label>Nuevo monto en caja</label>
+                        <div class="input-prefix"><span class="prefix">$</span><input type="number" id="cash-adjust-amount" min="0" step="0.01"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Razón del ajuste</label>
+                        <input type="text" id="cash-adjust-reason" placeholder="Ej: Cuadre de caja, Corte diario, Error...">
+                    </div>
+                    <button onclick="adjustCashBalance()" class="btn btn-warning btn-large">Guardar Ajuste</button>
+                    
+                    <div id="cash-adjust-history" style="margin-top: 1.5rem;">
+                        <h5 style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 0.75rem;">Últimos ajustes:</h5>
+                        <div id="adjust-history-list"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- OPERACIONES -->
@@ -265,34 +316,32 @@
                 <div id="tasks-list" class="tasks-list"><p class="text-muted">Cargando...</p></div>
             </div>
 
-            <!-- FINANZAS -->
+            <!-- MEJORA 1, 2, 3, 7: FINANZAS COMPLETAS (Solo Admin) -->
             <div id="finances-page" class="page hidden">
-                <div class="page-header"><h3>Caja</h3></div>
-
-                <!-- Rango de fechas -->
-                <div class="date-range-bar">
-                    <div class="date-range-inputs">
-                        <div class="form-group" style="margin:0;flex:1">
-                            <label style="font-size:0.75rem">Desde</label>
-                            <input type="date" id="finance-date-from" onchange="loadFinances()">
-                        </div>
-                        <div class="form-group" style="margin:0;flex:1">
-                            <label style="font-size:0.75rem">Hasta</label>
-                            <input type="date" id="finance-date-to" onchange="loadFinances()">
-                        </div>
-                    </div>
-                    <div class="date-range-shortcuts">
-                        <button onclick="setDateRange('today')" class="btn btn-small btn-secondary">Hoy</button>
-                        <button onclick="setDateRange('week')" class="btn btn-small btn-secondary">7 días</button>
-                        <button onclick="setDateRange('month')" class="btn btn-small btn-secondary">Mes</button>
+                <div class="page-header">
+                    <h3>Finanzas</h3>
+                </div>
+                
+                <!-- MEJORA 3: Rango de fechas -->
+                <div class="date-range-selector" style="background: var(--white); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Rango de fechas:</label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <input type="date" id="finance-date-from" style="flex: 1; min-width: 120px;">
+                        <span>a</span>
+                        <input type="date" id="finance-date-to" style="flex: 1; min-width: 120px;">
+                        <button onclick="loadFinances()" class="btn btn-primary" style="width: auto;">Actualizar</button>
                     </div>
                 </div>
 
-                <!-- Saldo en efectivo (visible para todos) -->
-                <div class="cash-balance-card">
-                    <span class="cash-balance-label">💵 Saldo en Caja (Efectivo)</span>
-                    <span class="cash-balance-amount" id="cash-balance-display">$0.00</span>
-                    <button onclick="showEditCashModal()" class="btn btn-small btn-secondary admin-only hidden" id="edit-cash-btn">Editar saldo</button>
+                <!-- MEJORA 1: Gráfico por método de pago -->
+                <div class="finance-charts" style="background: var(--white); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <h4 style="margin-bottom: 1rem;">Ingresos por Método de Pago</h4>
+                    <div style="max-height: 250px; margin-bottom: 1rem;">
+                        <canvas id="payment-method-chart"></canvas>
+                    </div>
+                    <div id="payment-method-totals" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; text-align: center;">
+                        <!-- Se llena dinámicamente -->
+                    </div>
                 </div>
 
                 <!-- Resumen -->
@@ -302,29 +351,24 @@
                     <div class="finance-card balance"><span class="finance-label">Balance</span><span class="finance-amount" id="total-balance">$0</span></div>
                 </div>
 
-                <!-- Gráfico por método de pago -->
-                <div class="chart-section">
-                    <h4>Ingresos por método de pago</h4>
-                    <div class="chart-container">
-                        <canvas id="payment-methods-chart"></canvas>
-                    </div>
-                    <div id="payment-methods-summary" class="payment-methods-summary"></div>
-                </div>
-
-                <!-- Movimientos -->
+                <!-- MEJORA 2: Movimientos con fecha y hora -->
                 <div class="transactions-section">
-                    <h4>Movimientos <button onclick="showNewTransactionModal()" class="btn btn-primary btn-small">+ Movimiento</button></h4>
+                    <h4>Transacciones <button onclick="showNewTransactionModal()" class="btn btn-primary btn-small">+ Movimiento</button></h4>
                     <div id="transactions-list" class="transactions-list"></div>
                 </div>
-            </div>
 
+                <!-- MEJORA 7: Link a gestión de caja -->
+                <div style="text-align: center; margin-top: 1rem;">
+                    <button onclick="showCashRegister()" class="btn btn-secondary">Ir a Caja</button>
+                </div>
+            </div>
         </main>
     </div>
 
     <!-- MODALES -->
     <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()"></div>
-
-    <!-- Modal nuevo movimiento -->
+    
+    <!-- Modal Nuevo Movimiento -->
     <div id="new-transaction-modal" class="modal hidden">
         <h4>Registrar Movimiento</h4>
         <form id="new-transaction-form">
@@ -338,6 +382,7 @@
             <div class="form-group"><label>Monto *</label><div class="input-prefix"><span class="prefix">$</span><input type="number" id="trans-amount" min="0.01" step="0.01" required></div></div>
             <div class="form-group"><label>Categoría *</label>
                 <select id="trans-category" required>
+                    <option value="reservation">Reserva</option>
                     <option value="supplies">Suministros</option>
                     <option value="food">Comida</option>
                     <option value="maintenance">Mantenimiento</option>
@@ -358,24 +403,43 @@
         </form>
     </div>
 
-    <!-- Modal editar saldo de caja (solo admin) -->
-    <div id="edit-cash-modal" class="modal hidden">
-        <h4>💵 Editar Saldo en Caja</h4>
-        <p style="font-size:0.875rem;color:var(--gray-500);margin-bottom:1rem;">Ingresa el monto actual real en caja para hacer un corte o ajuste.</p>
-        <form id="edit-cash-form">
-            <div class="form-group"><label>Saldo actual en caja *</label>
-                <div class="input-prefix"><span class="prefix">$</span><input type="number" id="cash-adjustment-amount" min="0" step="0.01" required></div>
+    <!-- MEJORA 5: Modal Editar Reserva -->
+    <div id="edit-reservation-modal" class="modal hidden">
+        <h4>Editar Reserva</h4>
+        <form id="edit-reservation-form">
+            <input type="hidden" id="edit-res-id">
+            <div class="form-group">
+                <label>Fecha Entrada</label>
+                <input type="date" id="edit-checkin" required>
             </div>
-            <div class="form-group"><label>Motivo del ajuste</label><input type="text" id="cash-adjustment-reason" placeholder="Ej: Corte de caja, arqueo..."></div>
-            <button type="submit" class="btn btn-primary">Guardar ajuste</button>
-            <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancelar</button>
+            <div class="form-group">
+                <label>Fecha Salida</label>
+                <input type="date" id="edit-checkout" required>
+            </div>
+            <div class="form-group">
+                <label>Habitación/Cama</label>
+                <select id="edit-room-bed" required>
+                    <option value="">Cargando...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Monto Total</label>
+                <div class="input-prefix"><span class="prefix">$</span><input type="number" id="edit-total" min="0" step="0.01" required></div>
+            </div>
+            <div class="form-group">
+                <label>Notas</label>
+                <textarea id="edit-notes" rows="2"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+            <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancelar</button>
         </form>
     </div>
 
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase-config.js"></script>
+    <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/app.js"></script>
     <script src="js/reservations.js"></script>
