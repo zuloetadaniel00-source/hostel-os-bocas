@@ -1,3 +1,7 @@
+// =====================================================
+// OPERACIONES / TAREAS
+// =====================================================
+
 async function loadTasks() {
     const list = document.getElementById('tasks-list');
     if (!list) return;
@@ -17,6 +21,8 @@ async function loadTasks() {
             list.innerHTML = '<p class="text-muted">Sin tareas pendientes 🎉</p>';
             return;
         }
+
+        const isAdmin = currentProfile?.role === 'admin';
         
         list.innerHTML = tasks.map(t => `
             <div class="task-card priority-${t.priority}">
@@ -31,7 +37,8 @@ async function loadTasks() {
                 </div>
                 <div class="task-actions">
                     <button onclick="completeTask('${t.id}')" class="btn btn-success btn-small">✓ Completar</button>
-                    ${currentProfile?.role === 'admin' ? `<button onclick="reassignTask('${t.id}')" class="btn btn-secondary btn-small">Reasignar</button>` : ''}
+                    ${isAdmin ? `<button onclick="reassignTask('${t.id}')" class="btn btn-secondary btn-small">Reasignar</button>` : ''}
+                    ${isAdmin ? `<button onclick="deleteTask('${t.id}')" class="btn btn-danger btn-small">🗑️ Eliminar</button>` : ''}
                 </div>
             </div>
         `).join('');
@@ -58,10 +65,27 @@ async function completeTask(id) {
     }
 }
 
+// =============================
+// ELIMINAR TAREA (ADMIN)
+// =============================
+async function deleteTask(id) {
+    if (!confirm('⚠️ ¿Eliminar esta tarea permanentemente? Esta acción no se puede deshacer.')) return;
+    try {
+        const { error } = await db.from('tasks').delete().eq('id', id);
+        if (error) throw error;
+        showToast('Tarea eliminada', 'success');
+        loadTasks();
+    } catch (err) {
+        console.error('Error deleting task:', err);
+        showToast('Error al eliminar: ' + err.message, 'error');
+    }
+}
+
 function reassignTask(id) {
     showToast('Función en desarrollo', 'info');
 }
 
-window.loadTasks = loadTasks;
-window.completeTask = completeTask;
-window.reassignTask = reassignTask;
+window.loadTasks     = loadTasks;
+window.completeTask  = completeTask;
+window.deleteTask    = deleteTask;
+window.reassignTask  = reassignTask;
