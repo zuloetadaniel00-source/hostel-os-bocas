@@ -226,7 +226,7 @@ function updateReservationSummary() {
     const summary = document.getElementById('reservation-summary');
     if (summary) {
         summary.innerHTML = `
-            <div class="summary-row"><span>Huéspед:</span><span>${esc(document.getElementById('guest-name')?.value)}</span></div>
+            <div class="summary-row"><span>Huésped:</span><span>${esc(document.getElementById('guest-name')?.value)}</span></div>
             <div class="summary-row"><span>Entrada:</span><span>${formatDate(checkIn)}</span></div>
             <div class="summary-row"><span>Salida:</span><span>${formatDate(checkOut)}</span></div>
             <div class="summary-row"><span>Noches:</span><span>${nights}</span></div>
@@ -280,10 +280,7 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const btn = document.getElementById('create-reservation-btn');
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Guardando...';
-    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
     try {
         const notesEl = document.getElementById('guest-notes');
@@ -295,7 +292,6 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         const receiptFile = document.getElementById('payment-receipt')?.files[0];
         const guestPhotoFile = document.getElementById('guest-photo')?.files[0];
 
-        // Subir foto del huésped si existe
         let guestPhotoUrl = null;
         if (guestPhotoFile) {
             const fileName = `guests/${Date.now()}_${guestPhotoFile.name}`;
@@ -306,7 +302,6 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
             }
         }
 
-        // Guardar huésped (campos simplificados)
         const [{ data: guest, error: guestError }, receiptUrl] = await Promise.all([
             db.from('guests').insert([{
                 full_name: document.getElementById('guest-name')?.value,
@@ -327,7 +322,6 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
 
         if (guestError) throw guestError;
 
-        // Guardar reserva
         const { data: reservation, error: resError } = await db.from('reservations').insert([{
             guest_id: guest.id,
             room_id: reservationData.roomId,
@@ -345,7 +339,6 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         
         if (resError) throw resError;
 
-        // Guardar pago si aplica
         if (initialPayment > 0) {
             const { error: payError } = await db.from('payments').insert([{
                 reservation_id: reservation.id,
@@ -356,10 +349,8 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                 notes: 'Pago inicial al crear reserva',
                 created_by: currentUser.id
             }]);
-            
             if (payError) throw payError;
             
-            // Registrar en transacciones
             await db.from('transactions').insert([{
                 type: 'income',
                 category: 'reservation',
@@ -371,7 +362,6 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                 created_by: currentUser.id
             }]);
             
-            // Actualizar caja si es efectivo
             if (paymentMethod === 'cash' && window.updateCashBalance) {
                 await window.updateCashBalance(initialPayment, 'add');
             }
@@ -384,10 +374,7 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         console.error('Error creating reservation:', error);
         showToast('Error al crear reserva: ' + error.message, 'error');
     } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = '✓ Crear Reserva';
-        }
+        if (btn) { btn.disabled = false; btn.textContent = '✓ Crear Reserva'; }
     }
 });
 
@@ -395,7 +382,6 @@ async function loadReservationsByDate() {
     const date = document.getElementById('reservations-date')?.value;
     const list = document.getElementById('reservations-list');
     if (!list) return;
-    
     list.innerHTML = '<p>Cargando...</p>';
     
     try {
@@ -467,7 +453,7 @@ async function showReservationDetail(reservationId) {
                 <div class="detail-section">
                     <h4>Información General</h4>
                     ${guestPhotoHtml}
-                    <div class="detail-row"><span class="detail-label">Huéspед</span><span class="detail-value">${esc(res.guest?.full_name)}</span></div>
+                    <div class="detail-row"><span class="detail-label">Huésped</span><span class="detail-value">${esc(res.guest?.full_name)}</span></div>
                     <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${esc(res.guest?.email) || 'N/A'}</span></div>
                     <div class="detail-row"><span class="detail-label">Nacionalidad</span><span class="detail-value">${esc(res.guest?.nationality) || 'N/A'}</span></div>
                 </div>
@@ -491,24 +477,26 @@ async function showReservationDetail(reservationId) {
         const actions = document.getElementById('detail-actions');
         if (actions) {
             actions.innerHTML = '';
+            const isAdmin = currentProfile?.role === 'admin';
             
             if (res.status !== 'cancelled' && res.status !== 'checked_out') {
                 actions.innerHTML += `<button onclick="openEditReservation('${res.id}')" class="btn btn-secondary">✏️ Editar</button>`;
             }
-            
             if (res.status === 'confirmed') {
                 actions.innerHTML += `<button onclick="doCheckIn('${res.id}')" class="btn btn-primary">Check-in</button>`;
             }
-            
             if (res.status === 'checked_in') {
                 actions.innerHTML += `<button onclick="doCheckOut('${res.id}')" class="btn btn-warning">Check-out</button>`;
                 if (res.balance_due > 0) {
                     actions.innerHTML += `<button onclick="addPayment('${res.id}')" class="btn btn-success">Registrar pago</button>`;
                 }
             }
-            
             if (res.status !== 'cancelled' && res.status !== 'checked_out') {
                 actions.innerHTML += `<button onclick="cancelReservation('${res.id}')" class="btn btn-danger">Cancelar</button>`;
+            }
+            // Botón eliminar solo para admin
+            if (isAdmin) {
+                actions.innerHTML += `<button onclick="deleteReservation('${res.id}')" class="btn btn-danger" style="background:#7f1d1d;">🗑️ Eliminar</button>`;
             }
         }
         
@@ -519,6 +507,25 @@ async function showReservationDetail(reservationId) {
     }
 }
 
+// =============================
+// ELIMINAR RESERVA (ADMIN)
+// =============================
+async function deleteReservation(id) {
+    if (!confirm('⚠️ ¿Eliminar esta reserva permanentemente? Esta acción no se puede deshacer.')) return;
+    try {
+        // Eliminar pagos y transacciones asociadas primero
+        await db.from('payments').delete().eq('reservation_id', id);
+        await db.from('transactions').delete().eq('reservation_id', id);
+        const { error } = await db.from('reservations').delete().eq('id', id);
+        if (error) throw error;
+        showToast('Reserva eliminada', 'success');
+        showReservations();
+    } catch (error) {
+        console.error('Error deleting reservation:', error);
+        showToast('Error al eliminar: ' + error.message, 'error');
+    }
+}
+
 async function openEditReservation(reservationId) {
     try {
         const { data: res, error } = await db.from('reservations')
@@ -526,10 +533,7 @@ async function openEditReservation(reservationId) {
             .eq('id', reservationId)
             .single();
             
-        if (error || !res) {
-            showToast('Error al cargar reserva', 'error');
-            return;
-        }
+        if (error || !res) { showToast('Error al cargar reserva', 'error'); return; }
         
         document.getElementById('edit-res-id').value = res.id;
         document.getElementById('edit-checkin').value = res.check_in_date;
@@ -546,7 +550,6 @@ async function openEditReservation(reservationId) {
         ]);
         
         select.innerHTML = '';
-        
         if (res.room_id) {
             const currentRoom = rooms.find(r => r.id === res.room_id);
             select.innerHTML += `<option value="room-${res.room_id}" selected>${currentRoom?.name || 'Habitación actual'} (actual)</option>`;
@@ -554,11 +557,9 @@ async function openEditReservation(reservationId) {
             const currentBed = beds.find(b => b.id === res.bed_id);
             select.innerHTML += `<option value="bed-${res.bed_id}" selected>Cama ${currentBed?.bed_number} - Hab ${currentBed?.room?.number} (actual)</option>`;
         }
-        
         rooms.filter(r => r.type === 'private' && r.id !== res.room_id).forEach(room => {
             select.innerHTML += `<option value="room-${room.id}">${room.name} (Privada)</option>`;
         });
-        
         beds.filter(b => b.id !== res.bed_id && b.status === 'available').forEach(bed => {
             select.innerHTML += `<option value="bed-${bed.id}">Cama ${bed.bed_number} - Hab ${bed.room?.number}</option>`;
         });
@@ -573,7 +574,6 @@ async function openEditReservation(reservationId) {
 
 document.getElementById('edit-reservation-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
     const id = document.getElementById('edit-res-id')?.value;
     const roomBedValue = document.getElementById('edit-room-bed')?.value;
     
@@ -585,18 +585,12 @@ document.getElementById('edit-reservation-form')?.addEventListener('submit', asy
         updated_at: new Date().toISOString()
     };
     
-    if (roomBedValue?.startsWith('room-')) {
-        updateData.room_id = roomBedValue.replace('room-', '');
-        updateData.bed_id = null;
-    } else if (roomBedValue?.startsWith('bed-')) {
-        updateData.bed_id = roomBedValue.replace('bed-', '');
-        updateData.room_id = null;
-    }
+    if (roomBedValue?.startsWith('room-')) { updateData.room_id = roomBedValue.replace('room-', ''); updateData.bed_id = null; }
+    else if (roomBedValue?.startsWith('bed-')) { updateData.bed_id = roomBedValue.replace('bed-', ''); updateData.room_id = null; }
     
     try {
         const { error } = await db.from('reservations').update(updateData).eq('id', id);
         if (error) throw error;
-        
         showToast('Reserva actualizada', 'success');
         closeEditModal();
         showReservations();
@@ -628,14 +622,13 @@ async function doCheckOut(reservationId) {
 }
 
 async function cancelReservation(reservationId) {
-    if (!confirm('¿Estás seguro de cancelar esta reserva? Se revertirán los pagos en efectivo si los hubiera.')) return;
+    if (!confirm('¿Estás seguro de cancelar esta reserva?')) return;
     
     try {
         const { data: res, error: fetchError } = await db.from('reservations')
             .select('*, guest:guest_id(full_name), payments(*)')
             .eq('id', reservationId)
             .single();
-            
         if (fetchError) throw fetchError;
         
         const cashPayments = res.payments?.filter(p => p.payment_method === 'cash') || [];
@@ -644,7 +637,6 @@ async function cancelReservation(reservationId) {
         const { error } = await db.from('reservations')
             .update({ status: 'cancelled', deleted_at: new Date().toISOString() })
             .eq('id', reservationId);
-            
         if (error) throw error;
         
         if (totalCashRefund > 0) {
@@ -658,10 +650,7 @@ async function cancelReservation(reservationId) {
                 shift_date: new Date().toISOString().split('T')[0],
                 created_by: currentUser.id
             }]);
-            
-            if (window.updateCashBalance) {
-                await window.updateCashBalance(totalCashRefund, 'subtract');
-            }
+            if (window.updateCashBalance) await window.updateCashBalance(totalCashRefund, 'subtract');
         }
         
         showToast('Reserva cancelada', 'success');
@@ -673,16 +662,17 @@ async function cancelReservation(reservationId) {
     }
 }
 
-window.resetReservationForm = resetReservationForm;
-window.showDormitoryOptions = showDormitoryOptions;
-window.showPrivateOptions = showPrivateOptions;
-window.updateAvailability = updateAvailability;
-window.goToStep = goToStep;
-window.toggleReceiptUpload = toggleReceiptUpload;
+window.resetReservationForm  = resetReservationForm;
+window.showDormitoryOptions  = showDormitoryOptions;
+window.showPrivateOptions    = showPrivateOptions;
+window.updateAvailability    = updateAvailability;
+window.goToStep              = goToStep;
+window.toggleReceiptUpload   = toggleReceiptUpload;
 window.loadReservationsByDate = loadReservationsByDate;
-window.showTab = showTab;
+window.showTab               = showTab;
 window.showReservationDetail = showReservationDetail;
-window.openEditReservation = openEditReservation;
-window.doCheckIn = doCheckIn;
-window.doCheckOut = doCheckOut;
-window.cancelReservation = cancelReservation;
+window.openEditReservation   = openEditReservation;
+window.doCheckIn             = doCheckIn;
+window.doCheckOut            = doCheckOut;
+window.cancelReservation     = cancelReservation;
+window.deleteReservation     = deleteReservation;
