@@ -59,7 +59,7 @@ async function registerCashIncome() {
     try {
         const { error: transError } = await db.from('transactions').insert([{
             type: 'income',
-            category: 'other',
+            category: 'manual_entry',
             amount: amount,
             payment_method: 'cash',
             description: concept || 'Ingreso manual',
