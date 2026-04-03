@@ -208,6 +208,7 @@ async function loadCashHistory() {
     } catch (error) {
         console.error('Error loading history:', error);
     }
+} 
 // =============================
 // INIT FINANCES
 // =============================
