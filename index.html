@@ -40,26 +40,34 @@
             </div>
         </header>
 
-        <nav class="bottom-nav">
-            <button onclick="showDashboard()" class="nav-btn active" data-page="dashboard">
-                <span class="nav-icon">📊</span><span class="nav-label">Inicio</span>
-            </button>
-            <button onclick="showReservations()" class="nav-btn" data-page="reservations">
-                <span class="nav-icon">🛏️</span><span class="nav-label">Reservas</span>
-            </button>
-            <button onclick="showNewReservation()" class="nav-btn nav-btn-main" data-page="new">
-                <span class="nav-icon">+</span><span class="nav-label">Nueva</span>
-            </button>
-            <button onclick="showOperations()" class="nav-btn" data-page="operations">
-                <span class="nav-icon">🧹</span><span class="nav-label">Tareas</span>
-            </button>
-            <button onclick="showCashRegister()" class="nav-btn" data-page="cash" id="nav-cash">
-                <span class="nav-icon">💵</span><span class="nav-label">Caja</span>
-            </button>
-            <button onclick="showFinances()" class="nav-btn admin-only hidden" data-page="finances">
-                <span class="nav-icon">💰</span><span class="nav-label">Finanzas</span>
-            </button>
-        </nav>
+        <!-- REEMPLAZA el <nav class="bottom-nav"> en tu index.html con esto: -->
+
+<nav class="bottom-nav">
+    <button onclick="showDashboard()" class="nav-btn active" data-page="dashboard">
+        <div class="nav-icon-wrap"><span class="nav-icon">📊</span></div>
+        <span class="nav-label">Inicio</span>
+    </button>
+    <button onclick="showReservations()" class="nav-btn" data-page="reservations">
+        <div class="nav-icon-wrap"><span class="nav-icon">🛏️</span></div>
+        <span class="nav-label">Reservas</span>
+    </button>
+    <button onclick="showNewReservation()" class="nav-btn nav-btn-main" data-page="new">
+        <div class="nav-icon-wrap"><span class="nav-icon">+</span></div>
+        <span class="nav-label">Nueva</span>
+    </button>
+    <button onclick="showOperations()" class="nav-btn" data-page="operations">
+        <div class="nav-icon-wrap"><span class="nav-icon">🧹</span></div>
+        <span class="nav-label">Tareas</span>
+    </button>
+    <button onclick="showCashRegister()" class="nav-btn" data-page="cash" id="nav-cash">
+        <div class="nav-icon-wrap"><span class="nav-icon">💵</span></div>
+        <span class="nav-label">Caja</span>
+    </button>
+    <button onclick="showFinances()" class="nav-btn admin-only hidden" data-page="finances">
+        <div class="nav-icon-wrap"><span class="nav-icon">💰</span></div>
+        <span class="nav-label">Finanzas</span>
+    </button>
+</nav>
 
         <main class="main-content" id="main-content">
             
