@@ -2,87 +2,26 @@
 // HOSTEL-OS BOCAS - APP PRINCIPAL
 // =====================================================
 
-// Estado global
 let currentUser = null;
 let currentProfile = null;
-let supabase = null;
+let currentReservation = null;
 
-// =====================================================
-// INICIALIZACIÓN DE SUPABASE
-// =====================================================
-
-function initSupabase() {
-    if (typeof window.supabase !== 'undefined') {
-        const SUPABASE_URL = 'https://tu-url-de-supabase.supabase.co'; // ← REEMPLAZA ESTO
-        const SUPABASE_ANON_KEY = 'tu-anon-key'; // ← REEMPLAZA ESTO
-
-        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        supabase = window.supabaseClient;
-
-        console.log('✅ Supabase inicializado correctamente');
-        return true;
-    } else {
-        console.error('❌ Error: Librería Supabase no cargada');
-        showToast('Error: No se pudo conectar con la base de datos', 'error');
-        return false;
-    }
-}
-
-// =====================================================
-// UTILIDADES GLOBALES
-// =====================================================
-
-function esc(str) {
-    if (str === null || str === undefined) return '';
+const esc = (str) => {
+    if (str == null) return '';
     return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
-}
-
-function formatDate(dateStr) {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-PA', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-    });
-}
-
-function formatDateTime(isoString) {
-    if (!isoString) return 'N/A';
-    const date = new Date(isoString);
-    return date.toLocaleString('es-PA', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-function formatCurrency(amount) {
-    const num = parseFloat(amount) || 0;
-    return '$' + num.toFixed(2);
-}
+};
 
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
-    if (!container) {
-        console.error('Toast container no encontrado');
-        alert(message);
-        return;
-    }
-
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(-20px)';
@@ -90,259 +29,130 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
-// =====================================================
-// NAVEGACIÓN
-// =====================================================
-
 function showPage(pageId) {
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-
-    const page = document.getElementById(pageId);
-    if (page) {
-        page.classList.remove('hidden');
-    } else {
-        console.error(`❌ Página ${pageId} no encontrada`);
-    }
-
+    document.getElementById(pageId).classList.remove('hidden');
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
-        const btnPage = btn.dataset.page || btn.getAttribute('onclick')?.match(/show(\w+)\(\)/)?.[1].toLowerCase();
-        if (btnPage && pageId.includes(btnPage)) {
-            btn.classList.add('active');
-        }
+        if (btn.dataset.page === pageId.replace('-page', '')) btn.classList.add('active');
     });
-
-    const mainContent = document.getElementById('main-content');
-    if (mainContent) mainContent.scrollTop = 0;
+    document.getElementById('main-content').scrollTop = 0;
 }
 
 function showDashboard() {
-    const title = document.getElementById('page-title');
-    if (title) title.textContent = 'Dashboard';
+    document.getElementById('page-title').textContent = 'Dashboard';
     showPage('dashboard-page');
-    if (typeof loadDashboard === 'function') loadDashboard();
+    loadDashboard();
 }
 
 function showReservations() {
-    const title = document.getElementById('page-title');
-    if (title) title.textContent = 'Reservas';
+    document.getElementById('page-title').textContent = 'Reservas';
     showPage('reservations-page');
-
-    const dateInput = document.getElementById('reservations-date');
-    if (dateInput && !dateInput.value) {
-        dateInput.value = new Date().toISOString().split('T')[0];
-    }
-
-    if (typeof loadReservationsByDate === 'function') loadReservationsByDate();
+    loadReservationsByDate();
 }
 
 function showNewReservation() {
-    const title = document.getElementById('page-title');
-    if (title) title.textContent = 'Nueva Reserva';
-    if (typeof resetReservationForm === 'function') resetReservationForm();
+    document.getElementById('page-title').textContent = 'Nueva Reserva';
+    resetReservationForm();
     showPage('new-reservation-page');
+    // initStep1 eliminado - no existe
 }
 
 function showOperations() {
-    const title = document.getElementById('page-title');
-    if (title) title.textContent = 'Tareas';
+    document.getElementById('page-title').textContent = 'Tareas';
     showPage('operations-page');
-    if (typeof loadTasks === 'function') loadTasks();
+    loadTasks();
 }
 
 function showFinances() {
     if (currentProfile?.role !== 'admin') {
-        showToast('⛔ No tienes permiso para ver finanzas', 'error');
+        showToast('No tienes permiso para ver finanzas', 'error');
         return;
     }
-    const title = document.getElementById('page-title');
-    if (title) title.textContent = 'Caja';
+    document.getElementById('page-title').textContent = 'Caja';
     showPage('finances-page');
-    if (typeof loadFinances === 'function') loadFinances();
+    loadFinances();
 }
 
 function goBack() {
     showReservations();
 }
 
-// =====================================================
-// MODALES
-// =====================================================
-
-function showModal(modalId) {
-    const overlay = document.getElementById('modal-overlay');
-    const modal = document.getElementById(modalId);
-    if (overlay) overlay.classList.remove('hidden');
-    if (modal) modal.classList.remove('hidden');
-}
-
-function closeModal() {
-    const overlay = document.getElementById('modal-overlay');
-    if (overlay) overlay.classList.add('hidden');
-    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-}
-
-// =====================================================
-// AUTENTICACIÓN
-// =====================================================
+document.addEventListener('DOMContentLoaded', async () => {
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+        await loadUserProfile(session.user);
+        showApp();
+    } else {
+        showLogin();
+    }
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('check-in-date').value = today;
+    document.getElementById('check-out-date').value = today;
+    document.getElementById('reservations-date').value = today;
+    document.getElementById('finance-date').value = today;
+});
 
 function showLogin() {
-    const loginScreen = document.getElementById('login-screen');
-    const appScreen = document.getElementById('app-screen');
-    if (loginScreen) loginScreen.classList.remove('hidden');
-    if (appScreen) appScreen.classList.add('hidden');
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('app-screen').classList.add('hidden');
 }
 
 function showApp() {
-    const loginScreen = document.getElementById('login-screen');
-    const appScreen = document.getElementById('app-screen');
-    if (loginScreen) loginScreen.classList.add('hidden');
-    if (appScreen) appScreen.classList.remove('hidden');
-
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app-screen').classList.remove('hidden');
     if (currentProfile?.role === 'admin') {
         document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
     }
-
     const roleBadge = document.getElementById('user-role');
-    if (roleBadge) {
-        roleBadge.textContent = currentProfile?.role === 'admin' ? 'Admin' : 'Voluntario';
-        roleBadge.className = `badge badge-${currentProfile?.role || 'volunteer'}`;
-    }
-
+    roleBadge.textContent = currentProfile?.role === 'admin' ? 'Admin' : 'Voluntario';
+    roleBadge.className = `badge badge-${currentProfile?.role}`;
     showDashboard();
 }
 
 async function loadUserProfile(user) {
     currentUser = user;
-
-    if (!supabase) {
-        console.error('❌ No se puede cargar perfil: Supabase no inicializado');
-        return;
-    }
-
-    try {
-        const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-
-        if (error) {
-            console.log('Perfil no encontrado, creando uno nuevo...');
-
-            const { data: newProfile, error: insertError } = await supabase
-                .from('profiles')
-                .insert([{
-                    id: user.id,
-                    email: user.email,
-                    full_name: user.user_metadata?.full_name || user.email,
-                    role: 'volunteer'
-                }])
-                .select()
-                .single();
-
-            if (insertError) {
-                console.error('❌ Error creando perfil:', insertError);
-                return;
-            }
-
-            currentProfile = newProfile;
-            console.log('✅ Perfil creado:', newProfile);
-        } else {
-            currentProfile = profile;
-            console.log('✅ Perfil cargado:', profile);
-        }
-
-    } catch (error) {
-        console.error('❌ Error en loadUserProfile:', error);
+    const { data: profile, error } = await db.from('profiles').select('*').eq('id', user.id).single();
+    if (error) {
+        const { data: newProfile } = await db.from('profiles').insert([{
+            id: user.id,
+            email: user.email,
+            full_name: user.user_metadata?.full_name || user.email,
+            role: 'volunteer'
+        }]).select().single();
+        currentProfile = newProfile;
+    } else {
+        currentProfile = profile;
     }
 }
 
 async function logout() {
-    if (supabase) await supabase.auth.signOut();
+    await db.auth.signOut();
     currentUser = null;
     currentProfile = null;
     showLogin();
 }
 
-// =====================================================
-// INICIALIZACIÓN PRINCIPAL
-// =====================================================
-
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 DOM cargado, inicializando Hostel-OS...');
-
-    const supabaseReady = initSupabase();
-
-    if (!supabaseReady) {
-        showToast('Error crítico: No se pudo conectar con la base de datos', 'error');
-        return;
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-    const dateInputs = {
-        'check-in-date': today,
-        'check-out-date': today,
-        'reservations-date': today,
-        'finance-date': today
-    };
-
-    Object.entries(dateInputs).forEach(([id, value]) => {
-        const input = document.getElementById(id);
-        if (input && !input.value) input.value = value;
-    });
-
-    try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-
-        if (session) {
-            console.log('✅ Sesión existente encontrada');
-            await loadUserProfile(session.user);
-            showApp();
-        } else {
-            console.log('ℹ️ No hay sesión activa');
-            showLogin();
-        }
-
-    } catch (error) {
-        console.error('❌ Error verificando sesión:', error);
-        showLogin();
-    }
-
-    supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth event:', event);
-        if (event === 'SIGNED_IN') {
-            await loadUserProfile(session.user);
-            showApp();
-        } else if (event === 'SIGNED_OUT') {
-            currentUser = null;
-            currentProfile = null;
-            showLogin();
-        }
-    });
-});
-
-// =====================================================
-// FUNCIONES PLACEHOLDER
-// =====================================================
-
-if (typeof loadDashboard !== 'function') {
-    window.loadDashboard = async function() { console.log('⚠️ loadDashboard no implementado'); };
+function showModal(modalId) {
+    document.getElementById('modal-overlay').classList.remove('hidden');
+    document.getElementById(modalId).classList.remove('hidden');
 }
 
-if (typeof loadReservationsByDate !== 'function') {
-    window.loadReservationsByDate = async function() { console.log('⚠️ loadReservationsByDate no implementado'); };
+function closeModal() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
 }
 
-if (typeof loadTasks !== 'function') {
-    window.loadTasks = async function() { console.log('⚠️ loadTasks no implementado'); };
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('es-PA', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-if (typeof loadFinances !== 'function') {
-    window.loadFinances = async function() { console.log('⚠️ loadFinances no implementado'); };
+function formatCurrency(amount) {
+    return '$' + parseFloat(amount || 0).toFixed(2);
 }
 
-if (typeof resetReservationForm !== 'function') {
-    window.resetReservationForm = function() { console.log('⚠️ resetReservationForm no implementado'); };
+function formatDateTime(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleString('es-PA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
