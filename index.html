@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hostel-OS Bocas</title>
     <link rel="stylesheet" href="css/styles.css">
-    <!-- Chart.js para gráficos -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js solo se carga cuando se necesita -->
 </head>
 <body>
     <!-- LOGIN SCREEN -->
@@ -54,11 +53,9 @@
             <button onclick="showOperations()" class="nav-btn" data-page="operations">
                 <span class="nav-icon">🧹</span><span class="nav-label">Tareas</span>
             </button>
-            <!-- MEJORA 6: Volunteer y Admin ven Caja -->
             <button onclick="showCashRegister()" class="nav-btn" data-page="cash" id="nav-cash">
                 <span class="nav-icon">💵</span><span class="nav-label">Caja</span>
             </button>
-            <!-- MEJORA 6: Solo Admin ve Finanzas completas -->
             <button onclick="showFinances()" class="nav-btn admin-only hidden" data-page="finances">
                 <span class="nav-icon">💰</span><span class="nav-label">Finanzas</span>
             </button>
@@ -159,7 +156,7 @@
                 </form>
             </div>
 
-            <!-- MEJORA 4: PASO 2 - Campos simplificados -->
+            <!-- PASO 2 - Simplificado -->
             <div id="new-reservation-step2" class="page hidden">
                 <div class="page-header">
                     <button onclick="goToStep(1)" class="btn btn-back">← Paso 1</button>
@@ -194,7 +191,6 @@
                         </select>
                     </div>
                     
-                    <!-- MEJORA 4: Foto con cámara o archivo -->
                     <div class="form-group">
                         <label>Foto del huésped</label>
                         <input type="file" id="guest-photo" accept="image/*" capture="environment">
@@ -261,22 +257,18 @@
             <div id="reservation-detail-page" class="page hidden">
                 <div class="page-header"><button onclick="goBack()" class="btn btn-back">← Volver</button><h3>Detalle</h3></div>
                 <div id="reservation-detail-content" class="detail-card"></div>
-                <!-- MEJORA 5: Botones de Editar y Cancelar en detalle -->
                 <div class="detail-actions" id="detail-actions"></div>
             </div>
 
-            <!-- MEJORA 6: CAJA (Volunteer y Admin) -->
+            <!-- CAJA -->
             <div id="cash-page" class="page hidden">
-                <div class="page-header">
-                    <h3>Caja</h3>
-                </div>
+                <div class="page-header"><h3>Caja</h3></div>
                 
                 <div class="cash-balance-display" style="background: var(--white); border-radius: var(--radius-lg); padding: 1.5rem; text-align: center; margin-bottom: 1rem; box-shadow: var(--shadow);">
                     <h4 style="color: var(--gray-500); font-size: 0.875rem; margin-bottom: 0.5rem;">Saldo Actual en Efectivo</h4>
                     <div id="current-cash-balance" style="font-size: 2.5rem; font-weight: 700; color: var(--success);">$0.00</div>
                 </div>
 
-                <!-- Volunteer: Solo registrar ingresos -->
                 <div id="volunteer-cash-actions" class="cash-actions" style="background: var(--white); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; box-shadow: var(--shadow);">
                     <h4 style="margin-bottom: 1rem;">Registrar Ingreso en Efectivo</h4>
                     <div class="form-group">
@@ -290,7 +282,6 @@
                     <button onclick="registerCashIncome()" class="btn btn-primary btn-large">Registrar Ingreso</button>
                 </div>
 
-                <!-- Admin: Ajustar saldo -->
                 <div id="admin-cash-actions" class="cash-actions hidden" style="background: var(--white); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; box-shadow: var(--shadow);">
                     <h4 style="margin-bottom: 1rem; color: var(--primary);">🔧 Ajustar Saldo de Caja (Admin)</h4>
                     <div class="form-group">
@@ -316,13 +307,10 @@
                 <div id="tasks-list" class="tasks-list"><p class="text-muted">Cargando...</p></div>
             </div>
 
-            <!-- MEJORA 1, 2, 3, 7: FINANZAS COMPLETAS (Solo Admin) -->
+            <!-- FINANZAS -->
             <div id="finances-page" class="page hidden">
-                <div class="page-header">
-                    <h3>Finanzas</h3>
-                </div>
+                <div class="page-header"><h3>Finanzas</h3></div>
                 
-                <!-- MEJORA 3: Rango de fechas -->
                 <div class="date-range-selector" style="background: var(--white); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; box-shadow: var(--shadow);">
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Rango de fechas:</label>
                     <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
@@ -333,31 +321,25 @@
                     </div>
                 </div>
 
-                <!-- MEJORA 1: Gráfico por método de pago -->
                 <div class="finance-charts" style="background: var(--white); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; box-shadow: var(--shadow);">
                     <h4 style="margin-bottom: 1rem;">Ingresos por Método de Pago</h4>
                     <div style="max-height: 250px; margin-bottom: 1rem;">
                         <canvas id="payment-method-chart"></canvas>
                     </div>
-                    <div id="payment-method-totals" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; text-align: center;">
-                        <!-- Se llena dinámicamente -->
-                    </div>
+                    <div id="payment-method-totals" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; text-align: center;"></div>
                 </div>
 
-                <!-- Resumen -->
                 <div class="finance-summary">
                     <div class="finance-card income"><span class="finance-label">Ingresos</span><span class="finance-amount" id="total-income">$0</span></div>
                     <div class="finance-card expense"><span class="finance-label">Egresos</span><span class="finance-amount" id="total-expense">$0</span></div>
                     <div class="finance-card balance"><span class="finance-label">Balance</span><span class="finance-amount" id="total-balance">$0</span></div>
                 </div>
 
-                <!-- MEJORA 2: Movimientos con fecha y hora -->
                 <div class="transactions-section">
                     <h4>Transacciones <button onclick="showNewTransactionModal()" class="btn btn-primary btn-small">+ Movimiento</button></h4>
                     <div id="transactions-list" class="transactions-list"></div>
                 </div>
 
-                <!-- MEJORA 7: Link a gestión de caja -->
                 <div style="text-align: center; margin-top: 1rem;">
                     <button onclick="showCashRegister()" class="btn btn-secondary">Ir a Caja</button>
                 </div>
@@ -368,7 +350,6 @@
     <!-- MODALES -->
     <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()"></div>
     
-    <!-- Modal Nuevo Movimiento -->
     <div id="new-transaction-modal" class="modal hidden">
         <h4>Registrar Movimiento</h4>
         <form id="new-transaction-form">
@@ -403,7 +384,6 @@
         </form>
     </div>
 
-    <!-- MEJORA 5: Modal Editar Reserva -->
     <div id="edit-reservation-modal" class="modal hidden">
         <h4>Editar Reserva</h4>
         <form id="edit-reservation-form">
@@ -437,8 +417,9 @@
 
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/supabase-config.js"></script>  <!-- o config.js -->
+<!-- Scripts optimizados -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/app.js"></script>
 <script src="js/reservations.js"></script>
