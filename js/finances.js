@@ -177,7 +177,7 @@ async function loadCashHistory() {
     try {
         const { data, error } = await db
             .from('cash_register')
-            .select('*, user:adjusted_by(full_name)')
+            .select('*')
             .order('created_at', { ascending: false })
             .limit(5);
 
@@ -186,16 +186,21 @@ async function loadCashHistory() {
         const container = document.getElementById('adjust-history-list');
         if (!container) return;
 
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div style="padding: 0.5rem; font-size: 0.75rem;">Sin movimientos</div>';
+            return;
+        }
+
         container.innerHTML = data.map(adj => `
             <div style="padding: 0.5rem; border-bottom: 1px solid var(--gray-100); font-size: 0.75rem;">
                 <div style="display: flex; justify-content: space-between;">
                     <span>${new Date(adj.created_at).toLocaleString('es-PA')}</span>
                     <span style="color: ${adj.difference >= 0 ? 'green' : 'red'}">
-                        ${adj.difference >= 0 ? '+' : ''}$${adj.difference.toFixed(2)}
+                        ${adj.difference >= 0 ? '+' : ''}$${Number(adj.difference || 0).toFixed(2)}
                     </span>
                 </div>
                 <div>
-                    $${adj.previous_balance.toFixed(2)} → $${adj.new_balance.toFixed(2)} | ${adj.reason}
+                    $${Number(adj.previous_balance || 0).toFixed(2)} → $${Number(adj.new_balance || 0).toFixed(2)} | ${adj.reason || ''}
                 </div>
             </div>
         `).join('');
@@ -204,7 +209,6 @@ async function loadCashHistory() {
         console.error('Error loading history:', error);
     }
 }
-
 // =============================
 // EXPORTS
 // =============================
