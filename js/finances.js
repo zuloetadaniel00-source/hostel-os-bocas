@@ -24,7 +24,7 @@ async function loadChartJS() {
 }
 
 // =============================
-// CASH BALANCE (FIX CLAVE)
+// CASH BALANCE
 // =============================
 async function loadCashBalance() {
     try {
@@ -33,9 +33,9 @@ async function loadCashBalance() {
             .select('new_balance')
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') throw error;
+        if (error) throw error;
 
         const balance = data?.new_balance || 0;
 
@@ -50,38 +50,6 @@ async function loadCashBalance() {
         console.error('Error loading cash:', error);
     }
 }
-
-// =============================
-// UPDATE CASH (GLOBAL)
-// =============================
-window.updateCashBalance = async function(amount, operation) {
-    try {
-        const { data: current } = await db
-            .from('cash_register')
-            .select('new_balance')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-        const currentBalance = current?.new_balance || 0;
-
-        const newBalance = operation === 'add'
-            ? currentBalance + amount
-            : currentBalance - amount;
-
-        await db.from('cash_register').insert({
-            previous_balance: currentBalance,
-            new_balance: newBalance,
-            difference: operation === 'add' ? amount : -amount,
-            reason: 'Movimiento automático',
-            adjusted_by: currentUser.id,
-            created_at: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('Error updating cash:', error);
-    }
-};
 
 // =============================
 // VOLUNTARIO → INGRESO
@@ -107,13 +75,13 @@ async function registerCashIncome() {
         if (error) throw error;
 
         showToast('Ingreso registrado', 'success');
-
-        loadCashBalance();
+        await loadCashBalance();
 
     } catch (error) {
         showToast(error.message, 'error');
     }
 }
+
 // =============================
 // ADMIN → AJUSTE
 // =============================
@@ -124,9 +92,6 @@ async function adjustCashBalance() {
     const newAmount = parseFloat(amountInput?.value);
     const reason = reasonInput?.value?.trim();
 
-    // =============================
-    // VALIDACIONES
-    // =============================
     if (isNaN(newAmount) || newAmount < 0) {
         showToast('Ingresa un monto válido', 'error');
         return;
@@ -137,14 +102,10 @@ async function adjustCashBalance() {
         return;
     }
 
-    // Evitar doble ejecución (doble click)
     if (adjustCashBalance.loading) return;
     adjustCashBalance.loading = true;
 
     try {
-        // =============================
-        // LLAMADA SEGURA AL BACKEND (RPC)
-        // =============================
         const { error } = await db.rpc('adjust_cash', {
             p_new_balance: newAmount,
             p_reason: reason || 'Ajuste manual',
@@ -153,9 +114,6 @@ async function adjustCashBalance() {
 
         if (error) throw error;
 
-        // =============================
-        // UI
-        // =============================
         showToast('Caja ajustada correctamente', 'success');
 
         if (amountInput) amountInput.value = '';
@@ -170,6 +128,7 @@ async function adjustCashBalance() {
         adjustCashBalance.loading = false;
     }
 }
+
 // =============================
 // HISTORIAL
 // =============================
@@ -208,7 +167,8 @@ async function loadCashHistory() {
     } catch (error) {
         console.error('Error loading history:', error);
     }
-} 
+} // 🔴 ESTE ERA EL QUE FALTABA
+
 // =============================
 // INIT FINANCES
 // =============================
