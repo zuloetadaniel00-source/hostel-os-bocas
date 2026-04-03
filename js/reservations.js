@@ -257,9 +257,9 @@ document.getElementById('step3-form').addEventListener('submit', async (e) => {
         let guestPhotoUrl = null;
         if (guestPhotoFile) {
             const fileName = `guests/${Date.now()}_${guestPhotoFile.name}`;
-            const { error: photoError } = await db.storage.from('photos').upload(fileName, guestPhotoFile);
+            const { error: photoError } = await db.storage.from('receipts').upload(fileName, guestPhotoFile);
             if (!photoError) {
-                const { data: { publicUrl } } = db.storage.from('photos').getPublicUrl(fileName);
+                const { data: { publicUrl } } = db.storage.from('receipts').getPublicUrl(fileName);
                 guestPhotoUrl = publicUrl;
             }
         }
