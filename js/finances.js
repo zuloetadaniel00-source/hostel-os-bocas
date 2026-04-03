@@ -212,3 +212,15 @@ window.loadFinances = loadFinances;
 window.loadCashBalance = loadCashBalance;
 window.registerCashIncome = registerCashIncome;
 window.adjustCashBalance = adjustCashBalance;
+
+// =============================
+// INIT FINANCES
+// =============================
+async function loadFinances() {
+    try {
+        await loadCashBalance();
+        await loadCashHistory();
+    } catch (error) {
+        console.error('Error loading finances:', error);
+    }
+}
