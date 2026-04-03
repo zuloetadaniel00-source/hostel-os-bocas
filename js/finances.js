@@ -1,9 +1,6 @@
 // =====================================================
-// FINANZAS / CAJA - CORREGIDO PRO
+// FINANZAS / CAJA - ESTABLE
 // =====================================================
-
-let paymentChart = null;
-let chartLoaded = false;
 
 // =============================
 // CASH BALANCE
@@ -88,7 +85,7 @@ async function adjustCashBalance() {
 }
 
 // =============================
-// HISTORIAL
+// HISTORIAL (SIN TEMPLATE STRING)
 // =============================
 async function loadCashHistory() {
     try {
@@ -103,14 +100,21 @@ async function loadCashHistory() {
         const container = document.getElementById('adjust-history-list');
         if (!container) return;
 
-        container.innerHTML = (data || []).map(adj => `
-            <div>
-                ${Number(adj.new_balance || 0).toFixed(2)}
-            </div>
-        `).join('');
+        if (!data || data.length === 0) {
+            container.innerHTML = 'Sin movimientos';
+            return;
+        }
+
+        let html = '';
+
+        data.forEach(adj => {
+            html += '<div>' + Number(adj.new_balance || 0).toFixed(2) + '</div>';
+        });
+
+        container.innerHTML = html;
 
     } catch (error) {
-        console.error(error);
+        console.error('Error loading history:', error);
     }
 }
 
@@ -118,8 +122,12 @@ async function loadCashHistory() {
 // INIT
 // =============================
 async function loadFinances() {
-    await loadCashBalance();
-    await loadCashHistory();
+    try {
+        await loadCashBalance();
+        await loadCashHistory();
+    } catch (error) {
+        console.error('Error loading finances:', error);
+    }
 }
 
 // =============================
