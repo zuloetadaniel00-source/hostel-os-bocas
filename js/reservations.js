@@ -1,7 +1,7 @@
 // =====================================================
 // RESERVAS - Crear y gestionar
 // =====================================================
-
+ 
 let reservationData = {
     roomId: null,
     bedId: null,
@@ -9,7 +9,7 @@ let reservationData = {
     checkOut: null,
     guestId: null
 };
-
+ 
 function resetReservationForm() {
     reservationData = { roomId: null, bedId: null, checkIn: null, checkOut: null, guestId: null };
     document.getElementById('step1-form').reset();
@@ -19,33 +19,43 @@ function resetReservationForm() {
     document.getElementById('initial-payment').value = '0';
     document.getElementById('balance-due').textContent = '$0.00';
 }
-
+ 
 function showDormitoryOptions() {
     document.getElementById('dormitory-options').classList.remove('hidden');
     document.getElementById('private-options').classList.add('hidden');
     loadDormitoryOptions();
 }
-
+ 
 function showPrivateOptions() {
     document.getElementById('dormitory-options').classList.add('hidden');
     document.getElementById('private-options').classList.remove('hidden');
     loadPrivateOptions();
 }
-
+ 
 function updateAvailability() {
     const type = document.querySelector('input[name="accommodation-type"]:checked')?.value;
     if (type === 'dormitory') loadDormitoryOptions();
     else if (type === 'private') loadPrivateOptions();
 }
-
+ 
 async function loadDormitoryOptions() {
     const checkIn = document.getElementById('check-in-date').value;
     const checkOut = document.getElementById('check-out-date').value;
     if (!checkIn || !checkOut) return;
     const list = document.getElementById('dormitory-list');
     list.innerHTML = '<p>Cargando disponibilidad...</p>';
-    const { data: rooms } = await db.from('rooms').select('*, beds(*)').eq('type', 'dormitory');
-    const { data: reservations } = await db.from('reservations').select('bed_id, status').gte('check_in_date', checkIn).lte('check_in_date', checkOut).neq('status', 'cancelled').neq('status', 'checked_out').is('deleted_at', null);
+ 
+    // ✅ Ambas consultas en paralelo
+    const [{ data: rooms }, { data: reservations }] = await Promise.all([
+        db.from('rooms').select('*, beds(*)').eq('type', 'dormitory'),
+        db.from('reservations').select('bed_id, status')
+            .gte('check_in_date', checkIn)
+            .lte('check_in_date', checkOut)
+            .neq('status', 'cancelled')
+            .neq('status', 'checked_out')
+            .is('deleted_at', null)
+    ]);
+ 
     const occupiedBeds = new Set(reservations?.map(r => r.bed_id) || []);
     list.innerHTML = '';
     rooms.forEach(room => {
@@ -64,16 +74,26 @@ async function loadDormitoryOptions() {
         list.appendChild(div);
     });
 }
-
+ 
 async function loadPrivateOptions() {
     const checkIn = document.getElementById('check-in-date').value;
     const checkOut = document.getElementById('check-out-date').value;
     if (!checkIn || !checkOut) return;
     const list = document.getElementById('private-list');
     list.innerHTML = '<p>Cargando disponibilidad...</p>';
-    const { data: reservations } = await db.from('reservations').select('room_id, status').gte('check_in_date', checkIn).lte('check_in_date', checkOut).neq('status', 'cancelled').neq('status', 'checked_out').is('deleted_at', null);
+ 
+    // ✅ Ambas consultas en paralelo
+    const [{ data: reservations }, { data: rooms }] = await Promise.all([
+        db.from('reservations').select('room_id, status')
+            .gte('check_in_date', checkIn)
+            .lte('check_in_date', checkOut)
+            .neq('status', 'cancelled')
+            .neq('status', 'checked_out')
+            .is('deleted_at', null),
+        db.from('rooms').select('*').eq('type', 'private').order('number')
+    ]);
+ 
     const occupiedRooms = new Set(reservations?.map(r => r.room_id) || []);
-    const { data: rooms } = await db.from('rooms').select('*').eq('type', 'private').order('number');
     list.innerHTML = '';
     rooms.forEach(room => {
         const isOccupied = occupiedRooms.has(room.id);
@@ -90,7 +110,7 @@ async function loadPrivateOptions() {
         list.appendChild(div);
     });
 }
-
+ 
 function selectDormitory(room, availableBeds, element) {
     document.querySelectorAll('#dormitory-list .room-option').forEach(el => el.classList.remove('selected'));
     element.classList.add('selected');
@@ -119,7 +139,7 @@ function selectDormitory(room, availableBeds, element) {
         element.appendChild(bedSelection);
     }
 }
-
+ 
 function selectPrivateRoom(room, element) {
     document.querySelectorAll('#private-list .room-option').forEach(el => el.classList.remove('selected'));
     element.classList.add('selected');
@@ -127,7 +147,7 @@ function selectPrivateRoom(room, element) {
     reservationData.bedId = null;
     document.getElementById('step1-continue').disabled = false;
 }
-
+ 
 document.getElementById('step1-form').addEventListener('submit', (e) => {
     e.preventDefault();
     reservationData.checkIn = document.getElementById('check-in-date').value;
@@ -139,20 +159,20 @@ document.getElementById('step1-form').addEventListener('submit', (e) => {
     document.getElementById('new-reservation-page').classList.add('hidden');
     document.getElementById('new-reservation-step2').classList.remove('hidden');
 });
-
+ 
 function goToStep(step) {
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
     if (step === 1) document.getElementById('new-reservation-page').classList.remove('hidden');
     else if (step === 2) document.getElementById('new-reservation-step2').classList.remove('hidden');
 }
-
+ 
 document.getElementById('step2-form').addEventListener('submit', (e) => {
     e.preventDefault();
     document.getElementById('new-reservation-step2').classList.add('hidden');
     document.getElementById('new-reservation-step3').classList.remove('hidden');
     updateReservationSummary();
 });
-
+ 
 function updateReservationSummary() {
     const checkIn = reservationData.checkIn;
     const checkOut = reservationData.checkOut;
@@ -164,16 +184,16 @@ function updateReservationSummary() {
         <div class="summary-row"><span>Noches:</span><span>${nights}</span></div>
     `;
 }
-
+ 
 document.getElementById('total-amount').addEventListener('input', updateBalance);
 document.getElementById('initial-payment').addEventListener('input', updateBalance);
-
+ 
 function updateBalance() {
     const total = parseFloat(document.getElementById('total-amount').value) || 0;
     const paid = parseFloat(document.getElementById('initial-payment').value) || 0;
     document.getElementById('balance-due').textContent = formatCurrency(total - paid);
 }
-
+ 
 function toggleReceiptUpload() {
     const method = document.querySelector('input[name="payment-method"]:checked').value;
     const uploadGroup = document.getElementById('receipt-upload-group');
@@ -186,7 +206,7 @@ function toggleReceiptUpload() {
         receiptInput.required = false;
     }
 }
-
+ 
 document.getElementById('payment-receipt').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -199,44 +219,48 @@ document.getElementById('payment-receipt').addEventListener('change', (e) => {
         reader.readAsDataURL(file);
     }
 });
-
+ 
 document.getElementById('step3-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('create-reservation-btn');
     btn.disabled = true;
     btn.textContent = 'Guardando...';
+ 
     try {
-        // Leer notas de forma segura — el campo puede no existir en el HTML
         const notesEl = document.getElementById('guest-notes');
         const reservationNotesEl = document.getElementById('reservation-notes');
-
-        const { data: guest, error: guestError } = await db.from('guests').insert([{
-            full_name: document.getElementById('guest-name').value,
-            email: document.getElementById('guest-email').value,
-            phone: document.getElementById('guest-phone').value,
-            nationality: document.getElementById('guest-nationality').value,
-            document_type: document.getElementById('guest-doc-type').value,
-            document_id: document.getElementById('guest-doc-id').value,
-            notes: notesEl ? notesEl.value : null
-        }]).select().single();
-        if (guestError) throw guestError;
-
-        let receiptUrl = null;
-        const receiptFile = document.getElementById('payment-receipt').files[0];
-        if (receiptFile) {
-            const fileName = `${Date.now()}_${receiptFile.name}`;
-            const { error: uploadError } = await db.storage.from('receipts').upload(fileName, receiptFile);
-            if (uploadError) throw uploadError;
-            const { data: { publicUrl } } = db.storage.from('receipts').getPublicUrl(fileName);
-            receiptUrl = publicUrl;
-        }
-
         const totalAmount = parseFloat(document.getElementById('total-amount').value) || 0;
         const initialPayment = parseFloat(document.getElementById('initial-payment').value) || 0;
         const paymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
         const statusEl = document.getElementById('reservation-status');
         const status = statusEl ? statusEl.value : 'confirmed';
-
+        const receiptFile = document.getElementById('payment-receipt').files[0];
+ 
+        // ✅ Guardar huésped y subir comprobante EN PARALELO
+        const [{ data: guest, error: guestError }, receiptUrl] = await Promise.all([
+            db.from('guests').insert([{
+                full_name: document.getElementById('guest-name').value,
+                email: document.getElementById('guest-email').value,
+                phone: document.getElementById('guest-phone').value,
+                nationality: document.getElementById('guest-nationality').value,
+                document_type: document.getElementById('guest-doc-type').value,
+                document_id: document.getElementById('guest-doc-id').value,
+                notes: notesEl ? notesEl.value : null
+            }]).select().single(),
+ 
+            // Subir comprobante al mismo tiempo que se guarda el huésped
+            receiptFile ? (async () => {
+                const fileName = `${Date.now()}_${receiptFile.name}`;
+                const { error: uploadError } = await db.storage.from('receipts').upload(fileName, receiptFile);
+                if (uploadError) throw uploadError;
+                const { data: { publicUrl } } = db.storage.from('receipts').getPublicUrl(fileName);
+                return publicUrl;
+            })() : Promise.resolve(null)
+        ]);
+ 
+        if (guestError) throw guestError;
+ 
+        // ✅ Guardar reserva
         const { data: reservation, error: resError } = await db.from('reservations').insert([{
             guest_id: guest.id,
             room_id: reservationData.roomId,
@@ -252,7 +276,8 @@ document.getElementById('step3-form').addEventListener('submit', async (e) => {
             created_by: currentUser.id
         }]).select().single();
         if (resError) throw resError;
-
+ 
+        // ✅ Guardar pago si aplica
         if (initialPayment > 0) {
             const { error: payError } = await db.from('payments').insert([{
                 reservation_id: reservation.id,
@@ -265,10 +290,10 @@ document.getElementById('step3-form').addEventListener('submit', async (e) => {
             }]);
             if (payError) throw payError;
         }
-
+ 
         showToast('Reserva creada exitosamente', 'success');
         showReservations();
-
+ 
     } catch (error) {
         console.error('Error creating reservation:', error);
         showToast('Error al crear reserva: ' + error.message, 'error');
@@ -277,12 +302,17 @@ document.getElementById('step3-form').addEventListener('submit', async (e) => {
         btn.textContent = '✓ Crear Reserva';
     }
 });
-
+ 
 async function loadReservationsByDate() {
     const date = document.getElementById('reservations-date').value;
     const list = document.getElementById('reservations-list');
     list.innerHTML = '<p>Cargando...</p>';
-    const { data: reservations } = await db.from('reservations').select('*, guest:guest_id(full_name), room:room_id(number, name), bed:bed_id(bed_number, room:room_id(number))').or(`check_in_date.eq.${date},check_out_date.eq.${date}`).is('deleted_at', null).order('created_at', { ascending: false });
+    const { data: reservations } = await db.from('reservations')
+        .select('*, guest:guest_id(full_name), room:room_id(number, name), bed:bed_id(bed_number, room:room_id(number))')
+        .or(`check_in_date.eq.${date},check_out_date.eq.${date}`)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+ 
     if (!reservations || reservations.length === 0) {
         list.innerHTML = '<p class="text-muted">No hay reservas para esta fecha</p>';
         return;
@@ -311,15 +341,18 @@ async function loadReservationsByDate() {
         list.appendChild(card);
     });
 }
-
+ 
 function showTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
     document.getElementById(`tab-${tab}`).classList.add('active');
     loadReservationsByDate();
 }
-
+ 
 async function showReservationDetail(reservationId) {
-    const { data: res } = await db.from('reservations').select('*, guest:guest_id(*), room:room_id(*), bed:bed_id(*, room:room_id(*)), payments(*)').eq('id', reservationId).single();
+    const { data: res } = await db.from('reservations')
+        .select('*, guest:guest_id(*), room:room_id(*), bed:bed_id(*, room:room_id(*)), payments(*)')
+        .eq('id', reservationId)
+        .single();
     if (!res) return;
     const location = res.bed ? `Cama ${res.bed.bed_number} - Hab ${res.bed.room?.number}` : res.room?.name || 'N/A';
     document.getElementById('reservation-detail-content').innerHTML = `
@@ -355,19 +388,19 @@ async function showReservationDetail(reservationId) {
     if (res.status !== 'cancelled' && res.status !== 'checked_out') actions.innerHTML += `<button onclick="cancelReservation('${res.id}')" class="btn btn-danger">Cancelar</button>`;
     showPage('reservation-detail-page');
 }
-
+ 
 async function doCheckIn(reservationId) {
     const { error } = await db.from('reservations').update({ status: 'checked_in' }).eq('id', reservationId);
     if (error) showToast('Error en check-in: ' + error.message, 'error');
     else { showToast('Check-in realizado', 'success'); showReservations(); }
 }
-
+ 
 async function doCheckOut(reservationId) {
     const { error } = await db.from('reservations').update({ status: 'checked_out' }).eq('id', reservationId);
     if (error) showToast('Error en check-out: ' + error.message, 'error');
     else { showToast('Check-out realizado', 'success'); showReservations(); }
 }
-
+ 
 async function cancelReservation(reservationId) {
     if (!confirm('¿Estás seguro de cancelar esta reserva?')) return;
     const { error } = await db.from('reservations').update({ status: 'cancelled', deleted_at: new Date().toISOString() }).eq('id', reservationId);
