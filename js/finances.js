@@ -91,93 +91,85 @@ async function registerCashIncome() {
     const concept = document.getElementById('cash-income-concept')?.value;
 
     if (!amount || amount <= 0) {
-        showToast('Ingresa un monto válido', 'error');
+        showToast('Monto inválido', 'error');
         return;
     }
 
     try {
-        const { error } = await db.from('transactions').insert([{
-            type: 'income',
-            category: 'manual_entry', // ✔ CORRECTO
-            amount: amount,
-            payment_method: 'cash',
-            description: concept || 'Ingreso manual',
-            shift_date: new Date().toISOString().split('T')[0],
-            created_by: currentUser.id
-        }]);
+        const { error } = await db.rpc('process_cash_transaction', {
+            p_type: 'income',
+            p_category: 'manual_entry',
+            p_amount: amount,
+            p_description: concept || 'Ingreso manual',
+            p_user_id: currentUser.id
+        });
 
         if (error) throw error;
 
-        await window.updateCashBalance(amount, 'add');
-
         showToast('Ingreso registrado', 'success');
-
-        document.getElementById('cash-income-amount').value = '';
-        document.getElementById('cash-income-concept').value = '';
 
         loadCashBalance();
 
     } catch (error) {
-        showToast('Error: ' + error.message, 'error');
+        showToast(error.message, 'error');
     }
 }
-
 // =============================
 // ADMIN → AJUSTE
 // =============================
 async function adjustCashBalance() {
-    const newAmount = parseFloat(document.getElementById('cash-adjust-amount')?.value);
-    const reason = document.getElementById('cash-adjust-reason')?.value;
+    const amountInput = document.getElementById('cash-adjust-amount');
+    const reasonInput = document.getElementById('cash-adjust-reason');
 
+    const newAmount = parseFloat(amountInput?.value);
+    const reason = reasonInput?.value?.trim();
+
+    // =============================
+    // VALIDACIONES
+    // =============================
     if (isNaN(newAmount) || newAmount < 0) {
         showToast('Ingresa un monto válido', 'error');
         return;
     }
 
+    if (!currentUser?.id) {
+        showToast('Usuario no autenticado', 'error');
+        return;
+    }
+
+    // Evitar doble ejecución (doble click)
+    if (adjustCashBalance.loading) return;
+    adjustCashBalance.loading = true;
+
     try {
-        const { data: current } = await db
-            .from('cash_register')
-            .select('new_balance')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-        const currentBalance = current?.new_balance || 0;
-        const difference = newAmount - currentBalance;
-
-        await db.from('cash_register').insert({
-            previous_balance: currentBalance,
-            new_balance: newAmount,
-            difference: difference,
-            reason: reason || 'Ajuste manual',
-            adjusted_by: currentUser.id,
-            created_at: new Date().toISOString()
+        // =============================
+        // LLAMADA SEGURA AL BACKEND (RPC)
+        // =============================
+        const { error } = await db.rpc('adjust_cash', {
+            p_new_balance: newAmount,
+            p_reason: reason || 'Ajuste manual',
+            p_user_id: currentUser.id
         });
 
-        if (difference !== 0) {
-            await db.from('transactions').insert([{
-                type: difference > 0 ? 'income' : 'expense',
-                category: 'cash_adjustment', // ✔ CORRECTO
-                amount: Math.abs(difference),
-                payment_method: 'cash',
-                description: `Ajuste de caja: ${reason || 'Sin razón'}`,
-                shift_date: new Date().toISOString().split('T')[0],
-                created_by: currentUser.id
-            }]);
-        }
+        if (error) throw error;
 
-        showToast('Saldo ajustado', 'success');
+        // =============================
+        // UI
+        // =============================
+        showToast('Caja ajustada correctamente', 'success');
 
-        document.getElementById('cash-adjust-amount').value = '';
-        document.getElementById('cash-adjust-reason').value = '';
+        if (amountInput) amountInput.value = '';
+        if (reasonInput) reasonInput.value = '';
 
-        loadCashBalance();
+        await loadCashBalance();
 
     } catch (error) {
+        console.error('Adjust cash error:', error);
         showToast('Error: ' + error.message, 'error');
+    } finally {
+        adjustCashBalance.loading = false;
     }
 }
-
 // =============================
 // HISTORIAL
 // =============================
