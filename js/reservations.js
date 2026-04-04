@@ -302,12 +302,13 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
             }
         }
 
+        // CAMBIO 1: NO incluir photo_url en el INSERT inicial (evita error de schema cache)
+        // La foto se guarda con un UPDATE separado después del INSERT
         const [{ data: guest, error: guestError }, receiptUrl] = await Promise.all([
             db.from('guests').insert([{
                 full_name: document.getElementById('guest-name')?.value,
                 email: document.getElementById('guest-email')?.value || null,
                 nationality: document.getElementById('guest-nationality')?.value || null,
-                photo_url: guestPhotoUrl,
                 notes: notesEl?.value || null
             }]).select().single(),
 
@@ -321,6 +322,11 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         ]);
 
         if (guestError) throw guestError;
+
+        // CAMBIO 1: Si hay foto, actualizar guest con photo_url en UPDATE separado
+        if (guestPhotoUrl) {
+            await db.from('guests').update({ photo_url: guestPhotoUrl }).eq('id', guest.id);
+        }
 
         const { data: reservation, error: resError } = await db.from('reservations').insert([{
             guest_id: guest.id,
