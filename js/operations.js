@@ -86,7 +86,10 @@ async function saveNewTask() {
     const title      = document.getElementById('new-task-title')?.value?.trim();
     const description = document.getElementById('new-task-description')?.value?.trim() || null;
     const assignedTo = document.getElementById('new-task-assigned')?.value?.trim();
-    const priority   = document.getElementById('new-task-priority')?.value || 'media';
+    // CORREGIDO: Usar valores en inglés que coincidan con el CHECK constraint
+    const priorityMap = { 'baja': 'low', 'media': 'medium', 'alta': 'high' };
+    const priorityRaw = document.getElementById('new-task-priority')?.value || 'media';
+    const priority = priorityMap[priorityRaw] || priorityRaw;
 
     if (!title || !assignedTo) {
         showToast('Título y "Asignado a" son obligatorios', 'error');
@@ -99,10 +102,10 @@ async function saveNewTask() {
             description,
             room_id: null,
             assigned_to_name: assignedTo,
-            priority,
+            priority, // Ahora es 'low', 'medium' o 'high'
             status: 'pending',
-            type: 'cleaning', // <-- CORREGIDO: Campo type requerido
-            due_date: new Date().toISOString(), // <-- CORREGIDO: Campo due_date requerido
+            type: 'cleaning',
+            due_date: new Date().toISOString(),
             created_at: new Date().toISOString(),
             created_by: currentUser.id
         }]);
