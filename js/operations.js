@@ -86,10 +86,21 @@ async function saveNewTask() {
     const title      = document.getElementById('new-task-title')?.value?.trim();
     const description = document.getElementById('new-task-description')?.value?.trim() || null;
     const assignedTo = document.getElementById('new-task-assigned')?.value?.trim();
-    // CORREGIDO: Usar valores en inglés que coincidan con el CHECK constraint
-    const priorityMap = { 'baja': 'low', 'media': 'medium', 'alta': 'high' };
+    
+    // CORREGIDO: Mapeo flexible que acepta cualquier variación
     const priorityRaw = document.getElementById('new-task-priority')?.value || 'media';
-    const priority = priorityMap[priorityRaw] || priorityRaw;
+    const priorityMap = {
+        'baja': 'low', 
+        'media': 'medium', 
+        'alta': 'high',
+        'low': 'low',
+        'medium': 'medium', 
+        'high': 'high',
+        'bajo': 'low',
+        'medio': 'medium',
+        'alto': 'high'
+    };
+    const priority = priorityMap[priorityRaw.toLowerCase()] || 'medium';
 
     if (!title || !assignedTo) {
         showToast('Título y "Asignado a" son obligatorios', 'error');
@@ -102,7 +113,7 @@ async function saveNewTask() {
             description,
             room_id: null,
             assigned_to_name: assignedTo,
-            priority, // Ahora es 'low', 'medium' o 'high'
+            priority, // Ahora siempre será 'low', 'medium' o 'high'
             status: 'pending',
             type: 'cleaning',
             due_date: new Date().toISOString(),
@@ -119,7 +130,6 @@ async function saveNewTask() {
         showToast('Error: ' + err.message, 'error');
     }
 }
-
 // =============================
 // CAMBIO 3: COMPLETAR TAREA (con nombre)
 // =============================
