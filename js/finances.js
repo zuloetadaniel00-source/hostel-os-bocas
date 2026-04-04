@@ -108,6 +108,19 @@ async function loadCashHistory() {
 // =============================
 async function loadFinances() {
     try {
+        // Si no hay fechas seleccionadas, poner el mes actual por defecto
+        const dateFromEl = document.getElementById('finance-date-from');
+        const dateToEl   = document.getElementById('finance-date-to');
+
+        if (dateFromEl && !dateFromEl.value) {
+            const now = new Date();
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            dateFromEl.value = firstDay.toISOString().split('T')[0];
+        }
+        if (dateToEl && !dateToEl.value) {
+            dateToEl.value = new Date().toISOString().split('T')[0];
+        }
+
         await loadCashBalance();
         await loadCashHistory();
         await loadFinanceSummary();
@@ -125,7 +138,8 @@ async function loadFinanceSummary() {
         const dateFrom = document.getElementById('finance-date-from')?.value;
         const dateTo   = document.getElementById('finance-date-to')?.value;
 
-        let query = db.from('transactions').select('*');
+        // CORRECCIÓN: si no hay fechas, traer TODAS las transacciones
+        let query = db.from('transactions').select('*').order('created_at', { ascending: false });
         if (dateFrom) query = query.gte('created_at', dateFrom + 'T00:00:00');
         if (dateTo)   query = query.lte('created_at', dateTo + 'T23:59:59');
 
@@ -141,9 +155,13 @@ async function loadFinanceSummary() {
             const amount = parseFloat(t.amount || 0);
             if (t.type === 'income') {
                 totalIncome += amount;
-                const method = t.payment_method || t.method || 'cash';
-                if (methodTotals[method] !== undefined) methodTotals[method] += amount;
-                else methodTotals['cash'] += amount;
+                // CORRECCIÓN: normalizar nombre del campo método de pago
+                const method = (t.payment_method || t.method || 'cash').toLowerCase();
+                if (methodTotals[method] !== undefined) {
+                    methodTotals[method] += amount;
+                } else {
+                    methodTotals['cash'] += amount;
+                }
             } else if (t.type === 'expense') {
                 totalExpense += amount;
             }
@@ -255,7 +273,8 @@ async function loadTransactions() {
         const dateFrom = document.getElementById('finance-date-from')?.value;
         const dateTo   = document.getElementById('finance-date-to')?.value;
 
-        let query = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(50);
+        // CORRECCIÓN: traer más registros y sin filtro de fecha si no hay fechas
+        let query = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(100);
         if (dateFrom) query = query.gte('created_at', dateFrom + 'T00:00:00');
         if (dateTo)   query = query.lte('created_at', dateTo + 'T23:59:59');
 
@@ -273,7 +292,7 @@ async function loadTransactions() {
             const isIncome  = t.type === 'income';
             const amount    = parseFloat(t.amount || 0);
             const fecha     = t.created_at ? new Date(t.created_at).toLocaleString('es-PA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--';
-            const method    = t.payment_method || t.method || '';
+            const method    = (t.payment_method || t.method || '').toLowerCase();
             const methodIcon = method === 'yappy' ? '📱' : method === 'card' ? '💳' : '💵';
             const color     = isIncome ? '#22c55e' : '#ef4444';
             const sign      = isIncome ? '+' : '-';
@@ -368,7 +387,7 @@ async function saveTransaction() {
 }
 
 // =============================
-// CAMBIO 6: EXPORTAR A EXCEL (SheetJS)
+// EXPORTAR A EXCEL (SheetJS)
 // =============================
 async function exportFinancesToExcel() {
     const dateFrom = document.getElementById('finance-date-from')?.value;
@@ -383,7 +402,6 @@ async function exportFinancesToExcel() {
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Exportando...'; }
 
     try {
-        // Lazy-load SheetJS solo cuando se necesita
         if (typeof XLSX === 'undefined') {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
@@ -439,3 +457,4 @@ window.loadTransactions        = loadTransactions;
 window.deleteTransaction       = deleteTransaction;
 window.showNewTransactionModal = showNewTransactionModal;
 window.exportFinancesToExcel   = exportFinancesToExcel;
+
