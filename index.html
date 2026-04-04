@@ -77,8 +77,6 @@
             </div>
         </header>
 
-        <!-- REEMPLAZA el <nav class="bottom-nav"> en tu index.html con esto: -->
-
 <nav class="bottom-nav">
     <button onclick="showDashboard()" class="nav-btn active" data-page="dashboard">
         <div class="nav-icon-wrap"><span class="nav-icon">📊</span></div>
@@ -201,7 +199,7 @@
                 </form>
             </div>
 
-            <!-- PASO 2 - Simplificado -->
+            <!-- PASO 2 -->
             <div id="new-reservation-step2" class="page hidden">
                 <div class="page-header">
                     <button onclick="goToStep(1)" class="btn btn-back">← Paso 1</button>
@@ -350,18 +348,17 @@
             <div id="operations-page" class="page hidden">
                 <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
                     <h3>Tareas</h3>
-                    <!-- CAMBIO 2: Botón agregar tarea (se muestra/oculta por JS según rol) -->
                     <div id="add-task-btn-container"></div>
                 </div>
                 <div id="tasks-list" class="tasks-list"><p class="text-muted">Cargando...</p></div>
 
-                <!-- CAMBIO 4: Historial de limpieza (solo admin, mostrado por JS) -->
+                <!-- CAMBIO 4: Historial de limpieza (solo admin) -->
                 <div id="cleaning-history-section" class="hidden" style="margin-top:1.5rem;">
                     <h4 style="margin-bottom:0.75rem;">🧹 Historial de Limpieza</h4>
                     <div id="cleaning-history-list"></div>
                 </div>
 
-                <!-- CAMBIO 5: Sección de Reportes (todos los usuarios) -->
+                <!-- CAMBIO 5: Sección de Reportes -->
                 <div style="margin-top:1.5rem;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
                         <h4>📋 Reportes</h4>
@@ -480,7 +477,7 @@
         </form>
     </div>
 
-    <!-- CAMBIO 2: Modal Agregar Tarea (admin) -->
+    <!-- Modal Agregar Tarea (admin) -->
     <div id="add-task-modal" class="modal hidden">
         <h4>+ Agregar Tarea</h4>
         <form id="add-task-form" onsubmit="event.preventDefault(); saveNewTask();">
@@ -504,12 +501,24 @@
                     <option value="low">🟢 Baja</option>
                 </select>
             </div>
+            <!-- CORRECCIÓN: Tipo de tarea con valores válidos en BD -->
+            <div class="form-group">
+                <label>Tipo de tarea</label>
+                <select id="new-task-type">
+                    <option value="cleaning_daily" selected>🧹 Limpieza diaria</option>
+                    <option value="cleaning_checkout">🛏️ Limpieza checkout</option>
+                    <option value="maintenance">🔧 Mantenimiento</option>
+                    <option value="laundry">👕 Lavandería</option>
+                    <option value="inventory">📦 Inventario</option>
+                    <option value="other">📋 Otro</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary">Guardar Tarea</button>
             <button type="button" onclick="closeAddTaskModal()" class="btn btn-secondary">Cancelar</button>
         </form>
     </div>
 
-    <!-- CAMBIO 3: Modal Completar Tarea -->
+    <!-- Modal Completar Tarea -->
     <div id="complete-task-modal" class="modal hidden">
         <h4>✓ Completar Tarea</h4>
         <p style="font-size:0.875rem; color:var(--gray-600); margin-bottom:1rem;">¿Quién realizó esta tarea?</p>
@@ -520,7 +529,7 @@
         <button onclick="closeCompleteTaskModal()" class="btn btn-secondary">Cancelar</button>
     </div>
 
-    <!-- CAMBIO 5: Modal Agregar Reporte -->
+    <!-- Modal Agregar Reporte -->
     <div id="add-report-modal" class="modal hidden">
         <h4>📋 Agregar Reporte</h4>
         <form id="add-report-form" onsubmit="event.preventDefault(); saveNewReport();">
@@ -561,7 +570,7 @@
 
     <div id="toast-container" class="toast-container"></div>
 
-<!-- Scripts optimizados -->
+<!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
 <script src="js/auth.js"></script>
