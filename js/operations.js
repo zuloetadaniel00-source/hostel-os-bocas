@@ -83,24 +83,22 @@ function closeAddTaskModal() {
 }
 
 async function saveNewTask() {
-    const title      = document.getElementById('new-task-title')?.value?.trim();
+    const title       = document.getElementById('new-task-title')?.value?.trim();
     const description = document.getElementById('new-task-description')?.value?.trim() || null;
-    const assignedTo = document.getElementById('new-task-assigned')?.value?.trim();
-    
-    // CORREGIDO: Mapeo flexible que acepta cualquier variación
-    const priorityRaw = document.getElementById('new-task-priority')?.value || 'media';
+    const assignedTo  = document.getElementById('new-task-assigned')?.value?.trim();
+
+    // Prioridad: valores válidos en BD → 'low', 'medium', 'high'
+    const priorityRaw = document.getElementById('new-task-priority')?.value || 'medium';
     const priorityMap = {
-        'baja': 'low', 
-        'media': 'medium', 
-        'alta': 'high',
-        'low': 'low',
-        'medium': 'medium', 
-        'high': 'high',
-        'bajo': 'low',
-        'medio': 'medium',
-        'alto': 'high'
+        'low': 'low', 'medium': 'medium', 'high': 'high',
+        'baja': 'low', 'media': 'medium', 'alta': 'high',
+        'bajo': 'low', 'medio': 'medium', 'alto': 'high'
     };
     const priority = priorityMap[priorityRaw.toLowerCase()] || 'medium';
+
+    // Tipo: valores válidos en BD → 'cleaning_checkout', 'cleaning_daily',
+    //       'maintenance', 'laundry', 'inventory', 'other'
+    const taskType = document.getElementById('new-task-type')?.value || 'cleaning_daily';
 
     if (!title || !assignedTo) {
         showToast('Título y "Asignado a" son obligatorios', 'error');
@@ -113,9 +111,9 @@ async function saveNewTask() {
             description,
             room_id: null,
             assigned_to_name: assignedTo,
-            priority, // Ahora siempre será 'low', 'medium' o 'high'
+            priority,
             status: 'pending',
-            type: 'cleaning',
+            type: taskType,
             due_date: new Date().toISOString(),
             created_at: new Date().toISOString(),
             created_by: currentUser.id
@@ -130,6 +128,7 @@ async function saveNewTask() {
         showToast('Error: ' + err.message, 'error');
     }
 }
+
 // =============================
 // CAMBIO 3: COMPLETAR TAREA (con nombre)
 // =============================
