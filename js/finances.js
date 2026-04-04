@@ -91,7 +91,9 @@ async function loadCashHistory() {
         }
         let html = '';
         data.forEach(adj => {
-            const fecha = adj.created_at ? new Date(adj.created_at).toLocaleString('es-PA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--';
+            const fecha = adj.created_at
+                ? new Date(adj.created_at).toLocaleString('es-PA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                : '--';
             html += '<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--gray-100);font-size:0.85rem;">'
                 + '<span style="color:var(--gray-500);">' + fecha + '</span>'
                 + '<span style="font-weight:600;">$' + Number(adj.new_balance || 0).toFixed(2) + '</span>'
@@ -108,19 +110,6 @@ async function loadCashHistory() {
 // =============================
 async function loadFinances() {
     try {
-        // Si no hay fechas seleccionadas, poner el mes actual por defecto
-        const dateFromEl = document.getElementById('finance-date-from');
-        const dateToEl   = document.getElementById('finance-date-to');
-
-        if (dateFromEl && !dateFromEl.value) {
-            const now = new Date();
-            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-            dateFromEl.value = firstDay.toISOString().split('T')[0];
-        }
-        if (dateToEl && !dateToEl.value) {
-            dateToEl.value = new Date().toISOString().split('T')[0];
-        }
-
         await loadCashBalance();
         await loadCashHistory();
         await loadFinanceSummary();
@@ -138,73 +127,87 @@ async function loadFinanceSummary() {
         const dateFrom = document.getElementById('finance-date-from')?.value;
         const dateTo   = document.getElementById('finance-date-to')?.value;
 
-        // CORRECCIÓN: si no hay fechas, traer TODAS las transacciones
-        let query = db.from('transactions').select('*').order('created_at', { ascending: false });
-        if (dateFrom) query = query.gte('created_at', dateFrom + 'T00:00:00');
-        if (dateTo)   query = query.lte('created_at', dateTo + 'T23:59:59');
+        // CORRECCIÓN: usar shift_date (fecha local sin timezone) para evitar desfase UTC
+        let query = db.from('transactions').select('*');
+        if (dateFrom) query = query.gte('shift_date', dateFrom);
+        if (dateTo)   query = query.lte('shift_date', dateTo);
+        query = query.order('created_at', { ascending: false });
 
         const { data, error } = await query;
-        if (error) throw error;
 
-        const transactions = data || [];
-        let totalIncome  = 0;
-        let totalExpense = 0;
-        const methodTotals = { cash: 0, yappy: 0, card: 0 };
-
-        transactions.forEach(t => {
-            const amount = parseFloat(t.amount || 0);
-            if (t.type === 'income') {
-                totalIncome += amount;
-                // CORRECCIÓN: normalizar nombre del campo método de pago
-                const method = (t.payment_method || t.method || 'cash').toLowerCase();
-                if (methodTotals[method] !== undefined) {
-                    methodTotals[method] += amount;
-                } else {
-                    methodTotals['cash'] += amount;
-                }
-            } else if (t.type === 'expense') {
-                totalExpense += amount;
-            }
-        });
-
-        const balance = totalIncome - totalExpense;
-
-        const setEl = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = formatCurrency(val);
-        };
-        setEl('total-income',  totalIncome);
-        setEl('total-expense', totalExpense);
-        setEl('total-balance', balance);
-
-        const balanceEl = document.getElementById('total-balance');
-        if (balanceEl) {
-            balanceEl.style.color = balance >= 0 ? 'var(--success)' : '#ef4444';
+        if (error) {
+            // Fallback con created_at si shift_date no existe como columna
+            console.warn('Fallback a created_at:', error.message);
+            let q2 = db.from('transactions').select('*');
+            if (dateFrom) q2 = q2.gte('created_at', dateFrom + 'T00:00:00+00:00');
+            if (dateTo)   q2 = q2.lte('created_at', dateTo   + 'T23:59:59+00:00');
+            const { data: d2, error: e2 } = await q2.order('created_at', { ascending: false });
+            if (e2) throw e2;
+            processTransactions(d2 || []);
+            return;
         }
 
-        const totalsContainer = document.getElementById('payment-method-totals');
-        if (totalsContainer) {
-            totalsContainer.innerHTML =
-                '<div style="background:var(--gray-50);border-radius:8px;padding:0.5rem;">' +
-                    '<div style="font-size:0.75rem;color:var(--gray-500);">💵 Efectivo</div>' +
-                    '<div style="font-weight:700;">$' + methodTotals.cash.toFixed(2) + '</div>' +
-                '</div>' +
-                '<div style="background:var(--gray-50);border-radius:8px;padding:0.5rem;">' +
-                    '<div style="font-size:0.75rem;color:var(--gray-500);">📱 Yappy</div>' +
-                    '<div style="font-weight:700;">$' + methodTotals.yappy.toFixed(2) + '</div>' +
-                '</div>' +
-                '<div style="background:var(--gray-50);border-radius:8px;padding:0.5rem;">' +
-                    '<div style="font-size:0.75rem;color:var(--gray-500);">💳 Tarjeta</div>' +
-                    '<div style="font-weight:700;">$' + methodTotals.card.toFixed(2) + '</div>' +
-                '</div>';
-        }
-
-        renderPaymentChart(methodTotals);
+        processTransactions(data || []);
 
     } catch (error) {
         console.error('Error loading finance summary:', error);
         showToast('Error cargando resumen financiero', 'error');
     }
+}
+
+function processTransactions(transactions) {
+    let totalIncome  = 0;
+    let totalExpense = 0;
+    const methodTotals = { cash: 0, yappy: 0, card: 0 };
+
+    transactions.forEach(t => {
+        const amount = parseFloat(t.amount || 0);
+        if (t.type === 'income') {
+            totalIncome += amount;
+            const method = (t.payment_method || t.method || 'cash').toLowerCase();
+            if (methodTotals[method] !== undefined) {
+                methodTotals[method] += amount;
+            } else {
+                methodTotals['cash'] += amount;
+            }
+        } else if (t.type === 'expense') {
+            totalExpense += amount;
+        }
+    });
+
+    const balance = totalIncome - totalExpense;
+
+    const setEl = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = formatCurrency(val);
+    };
+    setEl('total-income',  totalIncome);
+    setEl('total-expense', totalExpense);
+    setEl('total-balance', balance);
+
+    const balanceEl = document.getElementById('total-balance');
+    if (balanceEl) {
+        balanceEl.style.color = balance >= 0 ? 'var(--success)' : '#ef4444';
+    }
+
+    const totalsContainer = document.getElementById('payment-method-totals');
+    if (totalsContainer) {
+        totalsContainer.innerHTML =
+            '<div style="background:var(--gray-50);border-radius:8px;padding:0.5rem;">' +
+                '<div style="font-size:0.75rem;color:var(--gray-500);">💵 Efectivo</div>' +
+                '<div style="font-weight:700;">$' + methodTotals.cash.toFixed(2) + '</div>' +
+            '</div>' +
+            '<div style="background:var(--gray-50);border-radius:8px;padding:0.5rem;">' +
+                '<div style="font-size:0.75rem;color:var(--gray-500);">📱 Yappy</div>' +
+                '<div style="font-weight:700;">$' + methodTotals.yappy.toFixed(2) + '</div>' +
+            '</div>' +
+            '<div style="background:var(--gray-50);border-radius:8px;padding:0.5rem;">' +
+                '<div style="font-size:0.75rem;color:var(--gray-500);">💳 Tarjeta</div>' +
+                '<div style="font-weight:700;">$' + methodTotals.card.toFixed(2) + '</div>' +
+            '</div>';
+    }
+
+    renderPaymentChart(methodTotals);
 }
 
 // =============================
@@ -273,48 +276,64 @@ async function loadTransactions() {
         const dateFrom = document.getElementById('finance-date-from')?.value;
         const dateTo   = document.getElementById('finance-date-to')?.value;
 
-        // CORRECCIÓN: traer más registros y sin filtro de fecha si no hay fechas
+        // CORRECCIÓN: mismo filtro que el resumen — shift_date
         let query = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(100);
-        if (dateFrom) query = query.gte('created_at', dateFrom + 'T00:00:00');
-        if (dateTo)   query = query.lte('created_at', dateTo + 'T23:59:59');
+        if (dateFrom) query = query.gte('shift_date', dateFrom);
+        if (dateTo)   query = query.lte('shift_date', dateTo);
 
         const { data, error } = await query;
-        if (error) throw error;
 
-        if (!data || data.length === 0) {
-            container.innerHTML = '<p style="color:var(--gray-400);text-align:center;padding:2rem;">Sin transacciones en este período</p>';
+        if (error) {
+            // Fallback
+            let q2 = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(100);
+            if (dateFrom) q2 = q2.gte('created_at', dateFrom + 'T00:00:00+00:00');
+            if (dateTo)   q2 = q2.lte('created_at', dateTo   + 'T23:59:59+00:00');
+            const { data: d2, error: e2 } = await q2;
+            if (e2) throw e2;
+            renderTransactions(d2 || [], container);
             return;
         }
 
-        const isAdmin = currentProfile?.role === 'admin';
-        let html = '';
-        data.forEach(t => {
-            const isIncome  = t.type === 'income';
-            const amount    = parseFloat(t.amount || 0);
-            const fecha     = t.created_at ? new Date(t.created_at).toLocaleString('es-PA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--';
-            const method    = (t.payment_method || t.method || '').toLowerCase();
-            const methodIcon = method === 'yappy' ? '📱' : method === 'card' ? '💳' : '💵';
-            const color     = isIncome ? '#22c55e' : '#ef4444';
-            const sign      = isIncome ? '+' : '-';
-
-            html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--gray-100);">'
-                + '<div style="flex:1;">'
-                    + '<div style="font-size:0.875rem;font-weight:500;">' + esc(t.description || t.category) + '</div>'
-                    + '<div style="font-size:0.75rem;color:var(--gray-400);">' + fecha + ' ' + methodIcon + '</div>'
-                + '</div>'
-                + '<div style="display:flex;align-items:center;gap:0.75rem;">'
-                    + '<span style="font-weight:700;color:' + color + ';">' + sign + '$' + amount.toFixed(2) + '</span>'
-                    + (isAdmin ? '<button onclick="deleteTransaction(\'' + t.id + '\')" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0.25rem;" title="Eliminar">🗑️</button>' : '')
-                + '</div>'
-                + '</div>';
-        });
-
-        container.innerHTML = html;
+        renderTransactions(data || [], container);
 
     } catch (error) {
         console.error('Error loading transactions:', error);
         container.innerHTML = '<p style="color:#ef4444;text-align:center;padding:1rem;">Error cargando transacciones</p>';
     }
+}
+
+function renderTransactions(data, container) {
+    if (!data || data.length === 0) {
+        container.innerHTML = '<p style="color:var(--gray-400);text-align:center;padding:2rem;">Sin transacciones en este período</p>';
+        return;
+    }
+
+    const isAdmin = currentProfile?.role === 'admin';
+    let html = '';
+    data.forEach(t => {
+        const isIncome   = t.type === 'income';
+        const amount     = parseFloat(t.amount || 0);
+        const fecha      = t.created_at
+            ? new Date(t.created_at).toLocaleString('es-PA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+            : '--';
+        const method     = (t.payment_method || t.method || '').toLowerCase();
+        const methodIcon = method === 'yappy' ? '📱' : method === 'card' ? '💳' : '💵';
+        const color      = isIncome ? '#22c55e' : '#ef4444';
+        const sign       = isIncome ? '+' : '-';
+
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--gray-100);">'
+            + '<div style="flex:1;">'
+                + '<div style="font-size:0.875rem;font-weight:500;">' + esc(t.description || t.category) + '</div>'
+                + '<div style="font-size:0.75rem;color:var(--gray-400);">' + fecha + ' ' + methodIcon + '</div>'
+            + '</div>'
+            + '<div style="display:flex;align-items:center;gap:0.75rem;">'
+                + '<span style="font-weight:700;color:' + color + ';">' + sign + '$' + amount.toFixed(2) + '</span>'
+                + (isAdmin ? '<button onclick="deleteTransaction(\'' + t.id + '\')" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0.25rem;" title="Eliminar">🗑️</button>' : '')
+            + '</div>'
+            + '</div>';
+    });
+
+    container.innerHTML = html;
 }
 
 // =============================
@@ -363,6 +382,7 @@ async function saveTransaction() {
         return;
     }
     try {
+        const today = new Date().toISOString().split('T')[0];
         const { error } = await db.from('transactions').insert({
             type,
             amount,
@@ -370,7 +390,7 @@ async function saveTransaction() {
             payment_method: method,
             description,
             created_by: currentUser.id,
-            shift_date: new Date().toISOString().split('T')[0],
+            shift_date: today,
             created_at: new Date().toISOString()
         });
         if (error) throw error;
@@ -413,8 +433,8 @@ async function exportFinancesToExcel() {
         }
 
         let query = db.from('transactions').select('*').order('created_at', { ascending: true });
-        if (dateFrom) query = query.gte('created_at', dateFrom + 'T00:00:00');
-        if (dateTo)   query = query.lte('created_at', dateTo + 'T23:59:59');
+        if (dateFrom) query = query.gte('shift_date', dateFrom);
+        if (dateTo)   query = query.lte('shift_date', dateTo);
 
         const { data, error } = await query;
         if (error) throw error;
@@ -457,4 +477,3 @@ window.loadTransactions        = loadTransactions;
 window.deleteTransaction       = deleteTransaction;
 window.showNewTransactionModal = showNewTransactionModal;
 window.exportFinancesToExcel   = exportFinancesToExcel;
-
