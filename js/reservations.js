@@ -15,7 +15,6 @@ async function uploadFileToStorage(file, folder) {
     if (!file) return null;
     
     try {
-        // Verificar que hay sesión activa
         const { data: { session } } = await db.auth.getSession();
         if (!session) {
             throw new Error('No hay sesión activa para subir archivos');
@@ -23,7 +22,6 @@ async function uploadFileToStorage(file, folder) {
 
         const fileName = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
         
-        // Usar la sintaxis correcta de Supabase Storage
         const { data, error } = await db
             .storage
             .from('receipts')
@@ -38,7 +36,6 @@ async function uploadFileToStorage(file, folder) {
             throw error;
         }
 
-        // Obtener URL pública
         const { data: { publicUrl } } = db
             .storage
             .from('receipts')
@@ -48,7 +45,6 @@ async function uploadFileToStorage(file, folder) {
         
     } catch (error) {
         console.error('Error en uploadFileToStorage:', error);
-        // No bloquear la reserva si la foto falla, solo loggear
         if (folder === 'guests') return null;
         throw error;
     }
@@ -71,6 +67,12 @@ function resetReservationForm() {
     if (balanceEl) balanceEl.textContent = '$0.00';
     if (photoPreview) photoPreview.classList.add('hidden');
     if (receiptPreview) receiptPreview.classList.add('hidden');
+
+    // Resetear estado del comprobante al resetear el form
+    const uploadGroup = document.getElementById('receipt-upload-group');
+    const receiptInput = document.getElementById('payment-receipt');
+    if (uploadGroup) uploadGroup.classList.add('hidden');
+    if (receiptInput) receiptInput.required = false;
 }
 
 function showDormitoryOptions() {
@@ -182,7 +184,6 @@ function selectDormitory(room, availableBeds, element) {
     document.querySelectorAll('#dormitory-list .room-option').forEach(el => el.classList.remove('selected'));
     element.classList.add('selected');
     
-    // Remover selección previa de camas si existe
     const existingSelection = element.querySelector('.bed-selection');
     if (existingSelection) existingSelection.remove();
     
@@ -292,17 +293,27 @@ function updateBalance() {
     if (balanceEl) balanceEl.textContent = formatCurrency(total - paid);
 }
 
+// =====================================================
+// CORRECCIÓN 1: comprobante solo obligatorio en yappy/tarjeta
+// =====================================================
 function toggleReceiptUpload() {
     const method = document.querySelector('input[name="payment-method"]:checked')?.value;
     const uploadGroup = document.getElementById('receipt-upload-group');
     const receiptInput = document.getElementById('payment-receipt');
     
     if (method === 'yappy' || method === 'card') {
+        // Mostrar y hacer obligatorio
         uploadGroup?.classList.remove('hidden');
         if (receiptInput) receiptInput.required = true;
     } else {
+        // Efectivo: ocultar, no obligatorio y limpiar valor
         uploadGroup?.classList.add('hidden');
-        if (receiptInput) receiptInput.required = false;
+        if (receiptInput) {
+            receiptInput.required = false;
+            receiptInput.value = '';
+        }
+        const receiptPreview = document.getElementById('receipt-preview');
+        if (receiptPreview) receiptPreview.classList.add('hidden');
     }
 }
 
@@ -322,7 +333,7 @@ document.getElementById('payment-receipt')?.addEventListener('change', (e) => {
 });
 
 // =====================================================
-// CREAR RESERVA - CORREGIDO CON MANEJO DE ERRORES MEJORADO
+// CREAR RESERVA - CORRECCIÓN 2: transacción siempre se registra
 // =====================================================
 document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -331,7 +342,6 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
     if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
     try {
-        // Verificar autenticación primero
         const { data: { session } } = await db.auth.getSession();
         if (!session?.user) {
             throw new Error('No hay sesión activa. Por favor, inicia sesión nuevamente.');
@@ -342,24 +352,30 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         const notesEl = document.getElementById('guest-notes');
         const totalAmount = parseFloat(document.getElementById('total-amount')?.value) || 0;
         const initialPayment = parseFloat(document.getElementById('initial-payment')?.value) || 0;
-        const paymentMethod = document.querySelector('input[name="payment-method"]:checked')?.value;
+        const paymentMethod = document.querySelector('input[name="payment-method"]:checked')?.value || 'cash';
         const statusEl = document.getElementById('reservation-status');
         const status = statusEl?.value || 'confirmed';
         const receiptFile = document.getElementById('payment-receipt')?.files[0];
         const guestPhotoFile = document.getElementById('guest-photo')?.files[0];
 
-        // Subir archivos primero (no bloqueantes entre sí)
+        // Validar comprobante solo si el método lo requiere
+        if ((paymentMethod === 'yappy' || paymentMethod === 'card') && !receiptFile) {
+            showToast('El comprobante es obligatorio para Yappy o Tarjeta', 'error');
+            if (btn) { btn.disabled = false; btn.textContent = '✓ Crear Reserva'; }
+            return;
+        }
+
+        // Subir archivos
         let guestPhotoUrl = null;
         let receiptUrl = null;
         
         try {
             [guestPhotoUrl, receiptUrl] = await Promise.all([
                 uploadFileToStorage(guestPhotoFile, 'guests'),
-                uploadFileToStorage(receiptFile, 'receipts')
+                receiptFile ? uploadFileToStorage(receiptFile, 'receipts') : Promise.resolve(null)
             ]);
         } catch (uploadError) {
             console.warn('Error en upload de archivos:', uploadError);
-            // Continuar sin archivos si fallan
         }
 
         // Crear huésped
@@ -406,10 +422,10 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         }
 
         // =====================================================
-        // CREAR PAGO Y TRANSACCIÓN - CORREGIDO: NO BLOQUEAR SI FALLAN
+        // CORRECCIÓN 2: registrar pago y transacción si hay monto
         // =====================================================
         if (initialPayment > 0) {
-            // 1. Crear pago (importante, pero no bloqueante)
+            // 1. Crear pago
             try {
                 const { error: payError } = await db
                     .from('payments')
@@ -423,38 +439,35 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                         created_by: userId
                     }]);
                     
-                if (payError) {
-                    console.warn('Error creating payment (non-blocking):', payError);
-                }
+                if (payError) console.warn('Error creating payment:', payError);
             } catch (payCatchError) {
-                console.warn('Payment creation failed (non-blocking):', payCatchError);
+                console.warn('Payment creation failed:', payCatchError);
             }
             
-            // 2. Crear transacción (NO bloqueante - si falla, continúa)
-            try {
-                const { error: transError } = await db
-                    .from('transactions')
-                    .insert([{
-                        type: 'income',
-                        category: 'reservation',
-                        amount: initialPayment,
-                        payment_method: paymentMethod,
-                        description: `Reserva: ${guest.full_name}`,
-                        reservation_id: reservation.id,
-                        shift_date: new Date().toISOString().split('T')[0],
-                        created_by: userId
-                    }]);
-                    
-                if (transError) {
-                    console.warn('Error creating transaction (non-blocking):', transError);
-                    // NO lanzar error, solo loggear
-                }
-            } catch (transCatchError) {
-                console.warn('Transaction failed (non-blocking):', transCatchError);
-                // Continuar normalmente
+            // 2. Crear transacción — CRÍTICO para que aparezca en finanzas
+            const { error: transError } = await db
+                .from('transactions')
+                .insert([{
+                    type: 'income',
+                    category: 'reservation',
+                    amount: initialPayment,
+                    payment_method: paymentMethod,
+                    description: `Reserva: ${guest.full_name}`,
+                    reservation_id: reservation.id,
+                    shift_date: new Date().toISOString().split('T')[0],
+                    created_at: new Date().toISOString(),
+                    created_by: userId
+                }]);
+                
+            if (transError) {
+                // Mostrar el error real para depurar
+                console.error('Error creando transacción:', transError);
+                showToast(`Reserva creada, pero no se registró en finanzas: ${transError.message}`, 'error');
+            } else {
+                console.log('✅ Transacción registrada en finanzas correctamente');
             }
             
-            // 3. Actualizar caja si es efectivo (NO bloqueante)
+            // 3. Actualizar caja si es efectivo
             if (paymentMethod === 'cash' && window.updateCashBalance) {
                 try {
                     await window.updateCashBalance(initialPayment, 'add');
