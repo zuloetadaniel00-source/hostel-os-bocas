@@ -101,7 +101,8 @@ async function saveNewTask() {
             assigned_to_name: assignedTo,
             priority,
             status: 'pending',
-            type: 'cleaning', // <-- CORREGIDO: Agregado campo type requerido
+            type: 'cleaning', // <-- CORREGIDO: Campo type requerido
+            due_date: new Date().toISOString(), // <-- CORREGIDO: Campo due_date requerido
             created_at: new Date().toISOString(),
             created_by: currentUser.id
         }]);
