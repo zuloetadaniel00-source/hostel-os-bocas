@@ -322,7 +322,7 @@ document.getElementById('payment-receipt')?.addEventListener('change', (e) => {
 });
 
 // =====================================================
-// CREAR RESERVA - CORREGIDO CON MANEJO DE ERRORES
+// CREAR RESERVA - CORREGIDO CON MANEJO DE ERRORES MEJORADO
 // =====================================================
 document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -405,44 +405,56 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
             throw new Error(`Error al crear reserva: ${resError.message}`);
         }
 
-        // Crear pago si hay monto inicial
+        // =====================================================
+        // CREAR PAGO Y TRANSACCIÓN - CORREGIDO: NO BLOQUEAR SI FALLAN
+        // =====================================================
         if (initialPayment > 0) {
-            const { error: payError } = await db
-                .from('payments')
-                .insert([{
-                    reservation_id: reservation.id,
-                    amount: initialPayment,
-                    payment_method: paymentMethod,
-                    payment_type: initialPayment >= totalAmount ? 'full' : 'deposit',
-                    receipt_url: receiptUrl,
-                    notes: 'Pago inicial al crear reserva',
-                    created_by: userId
-                }]);
-                
-            if (payError) {
-                console.error('Error creating payment:', payError);
-                // No fallar todo si el pago falla, solo loggear
+            // 1. Crear pago (importante, pero no bloqueante)
+            try {
+                const { error: payError } = await db
+                    .from('payments')
+                    .insert([{
+                        reservation_id: reservation.id,
+                        amount: initialPayment,
+                        payment_method: paymentMethod,
+                        payment_type: initialPayment >= totalAmount ? 'full' : 'deposit',
+                        receipt_url: receiptUrl,
+                        notes: 'Pago inicial al crear reserva',
+                        created_by: userId
+                    }]);
+                    
+                if (payError) {
+                    console.warn('Error creating payment (non-blocking):', payError);
+                }
+            } catch (payCatchError) {
+                console.warn('Payment creation failed (non-blocking):', payCatchError);
             }
             
-            // Crear transacción
-            const { error: transError } = await db
-                .from('transactions')
-                .insert([{
-                    type: 'income',
-                    category: 'reservation',
-                    amount: initialPayment,
-                    payment_method: paymentMethod,
-                    description: `Reserva: ${guest.full_name}`,
-                    reservation_id: reservation.id,
-                    shift_date: new Date().toISOString().split('T')[0],
-                    created_by: userId
-                }]);
-                
-            if (transError) {
-                console.error('Error creating transaction:', transError);
+            // 2. Crear transacción (NO bloqueante - si falla, continúa)
+            try {
+                const { error: transError } = await db
+                    .from('transactions')
+                    .insert([{
+                        type: 'income',
+                        category: 'reservation',
+                        amount: initialPayment,
+                        payment_method: paymentMethod,
+                        description: `Reserva: ${guest.full_name}`,
+                        reservation_id: reservation.id,
+                        shift_date: new Date().toISOString().split('T')[0],
+                        created_by: userId
+                    }]);
+                    
+                if (transError) {
+                    console.warn('Error creating transaction (non-blocking):', transError);
+                    // NO lanzar error, solo loggear
+                }
+            } catch (transCatchError) {
+                console.warn('Transaction failed (non-blocking):', transCatchError);
+                // Continuar normalmente
             }
             
-            // Actualizar caja si es efectivo
+            // 3. Actualizar caja si es efectivo (NO bloqueante)
             if (paymentMethod === 'cash' && window.updateCashBalance) {
                 try {
                     await window.updateCashBalance(initialPayment, 'add');
