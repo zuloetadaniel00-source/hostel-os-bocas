@@ -444,29 +444,9 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                 console.warn('Payment creation failed:', payCatchError);
             }
             
-            // 2. Crear transacción — CRÍTICO para que aparezca en finanzas
-            const { error: transError } = await db
-                .from('transactions')
-                .insert([{
-                    type: 'income',
-                    category: 'reservation',
-                    amount: initialPayment,
-                    payment_method: paymentMethod,
-                    description: `Reserva: ${guest.full_name}`,
-                    reservation_id: reservation.id,
-                    shift_date: new Date().toISOString().split('T')[0],
-                    created_at: new Date().toISOString(),
-                    created_by: userId
-                }]);
-                
-            if (transError) {
-                // Mostrar el error real para depurar
-                console.error('Error creando transacción:', transError);
-                showToast(`Reserva creada, pero no se registró en finanzas: ${transError.message}`, 'error');
-            } else {
-                console.log('✅ Transacción registrada en finanzas correctamente');
-            }
-            
+            // El trigger trigger_create_transaction_from_payment crea la transacción
+            // automáticamente al insertar en payments. No se inserta manualmente.
+
             // 3. Actualizar caja si es efectivo
             if (paymentMethod === 'cash' && window.updateCashBalance) {
                 try {
