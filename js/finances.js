@@ -368,6 +368,67 @@ async function saveTransaction() {
 }
 
 // =============================
+// CAMBIO 6: EXPORTAR A EXCEL (SheetJS)
+// =============================
+async function exportFinancesToExcel() {
+    const dateFrom = document.getElementById('finance-date-from')?.value;
+    const dateTo   = document.getElementById('finance-date-to')?.value;
+
+    if (!dateFrom || !dateTo) {
+        showToast('Selecciona un rango de fechas para exportar', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('export-excel-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Exportando...'; }
+
+    try {
+        // Lazy-load SheetJS solo cuando se necesita
+        if (typeof XLSX === 'undefined') {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        let query = db.from('transactions').select('*').order('created_at', { ascending: true });
+        if (dateFrom) query = query.gte('created_at', dateFrom + 'T00:00:00');
+        if (dateTo)   query = query.lte('created_at', dateTo + 'T23:59:59');
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const rows = (data || []).map(t => ({
+            'Fecha': t.created_at
+                ? new Date(t.created_at).toLocaleString('es-PA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : '--',
+            'Descripción': t.description || t.category || '',
+            'Tipo': t.type === 'income' ? 'Ingreso' : 'Egreso',
+            'Categoría': t.category || '',
+            'Método de pago': t.payment_method || t.method || '',
+            'Monto': parseFloat(t.amount || 0)
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Transacciones');
+
+        const fileName = `finanzas_${dateFrom}_a_${dateTo}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+        showToast('Archivo Excel descargado', 'success');
+
+    } catch (err) {
+        console.error('Error exportando Excel:', err);
+        showToast('Error al exportar: ' + err.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '⬇ Exportar Excel'; }
+    }
+}
+
+// =============================
 // EXPORTS
 // =============================
 window.loadFinances            = loadFinances;
@@ -377,3 +438,4 @@ window.adjustCashBalance       = adjustCashBalance;
 window.loadTransactions        = loadTransactions;
 window.deleteTransaction       = deleteTransaction;
 window.showNewTransactionModal = showNewTransactionModal;
+window.exportFinancesToExcel   = exportFinancesToExcel;
