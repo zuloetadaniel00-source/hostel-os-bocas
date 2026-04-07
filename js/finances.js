@@ -381,6 +381,7 @@ const categoryMap = {
     'mobile': { name: 'Móvil', icon: '📱', color: '#8b5cf6' },
     'other': { name: 'Otro', icon: '📋', color: '#9ca3af' },
     'manual_entry': { name: 'Ingreso Manual', icon: '💵', color: '#10b981' },
+    'cash_adjustment': { name: 'Actualización de Caja', icon: '🏦', color: '#6366f1' },
     'cancellation_refund': { name: 'Reembolso', icon: '↩️', color: '#ef4444' }
 };
 
