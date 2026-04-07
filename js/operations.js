@@ -207,7 +207,7 @@ async function loadCleaningHistory() {
 
         list.innerHTML = completed.map(t => {
             const completedAt = t.completed_at
-                ? new Date(t.completed_at).toLocaleString('es-PA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                ? formatDateTime(t.completed_at)
                 : '--';
             return `
                 <div class="cleaning-history-card">
@@ -271,7 +271,7 @@ async function loadReports() {
 
         container.innerHTML = reports.map(r => {
             const fecha = r.created_at
-                ? new Date(r.created_at).toLocaleString('es-PA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                ? formatDateTime(r.created_at)
                 : '--';
             const color = urgencyColor[r.urgency] || '#6b7280';
             const label = urgencyLabel[r.urgency] || r.urgency;
