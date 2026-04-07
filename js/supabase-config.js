@@ -277,7 +277,7 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
             previousBalance,
             newBalance: newAmount,
             difference,
-            isPositiveAdjustment,
+            isPositiveAdjustment: difference > 0,
             cashRecordId: cashRecord.id
         };
 
