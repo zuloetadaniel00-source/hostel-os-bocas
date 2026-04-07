@@ -244,15 +244,18 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
 
         if (insertCashError) throw insertCashError;
 
-        // Always register as income type 'cash_adjustment' — it represents the new cash state
-        const description = `Actualización de caja: ${adjustmentReason} (anterior: $${previousBalance.toFixed(2)} → nuevo: $${newAmount.toFixed(2)})`;
+        // difference > 0 = dinero entró a caja = INGRESO
+        // difference < 0 = dinero salió de caja = EGRESO
+        const transactionType = difference > 0 ? 'income' : 'expense';
+        const direction = difference > 0 ? 'Ingreso' : 'Egreso';
+        const description = `Actualización de caja (${direction}): ${adjustmentReason} — anterior $${previousBalance.toFixed(2)}, nuevo $${newAmount.toFixed(2)}`;
 
         const { error: transError } = await window.db
             .from('transactions')
             .insert({
-                type: 'income',
+                type: transactionType,
                 category: 'cash_adjustment',
-                amount: newAmount,
+                amount: Math.abs(difference),
                 payment_method: 'cash',
                 description: description,
                 shift_date: today,
