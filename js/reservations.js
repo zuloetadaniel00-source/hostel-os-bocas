@@ -1,5 +1,6 @@
 // =====================================================
 // RESERVAS - CON INTEGRACIÓN COMPLETA A CAJA
+// Premium UX Edition
 // =====================================================
 
 let reservationData = {
@@ -55,15 +56,31 @@ function resetReservationForm() {
     if (totalEl) totalEl.value = '0';
     if (initialEl) initialEl.value = '0';
     if (balanceEl) balanceEl.textContent = '$0.00';
-    if (photoPreview) photoPreview.classList.add('hidden');
-    if (receiptPreview) receiptPreview.classList.add('hidden');
+    if (photoPreview) {
+        photoPreview.innerHTML = '';
+        photoPreview.classList.add('hidden');
+    }
+    if (receiptPreview) {
+        receiptPreview.innerHTML = '';
+        receiptPreview.classList.add('hidden');
+    }
 
     const uploadGroup = document.getElementById('receipt-upload-group');
     const receiptInput = document.getElementById('payment-receipt');
     if (uploadGroup) uploadGroup.classList.add('hidden');
-    if (receiptInput) receiptInput.required = false;
+    if (receiptInput) {
+        receiptInput.required = false;
+        receiptInput.value = '';
+    }
     
-    // Resetear fechas
+    // Reset selections
+    document.querySelectorAll('.room-option').forEach(el => el.classList.remove('selected'));
+    document.querySelectorAll('.bed-option').forEach(el => el.classList.remove('selected'));
+    
+    const continueBtn = document.getElementById('step1-continue');
+    if (continueBtn) continueBtn.disabled = true;
+    
+    // Reset dates
     const today = getTodayInPanama();
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -103,7 +120,13 @@ async function loadDormitoryOptions() {
     
     const list = document.getElementById('dormitory-list');
     if (!list) return;
-    list.innerHTML = '<p>Cargando...</p>';
+    
+    // Show loading state
+    list.innerHTML = `
+        <div class="skeleton" style="height: 80px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+        <div class="skeleton" style="height: 80px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+        <div class="skeleton" style="height: 80px; border-radius: var(--radius-lg);"></div>
+    `;
 
     try {
         const [{ data: rooms }, { data: reservations }] = await Promise.all([
@@ -119,24 +142,27 @@ async function loadDormitoryOptions() {
         const occupiedBeds = new Set(reservations?.map(r => r.bed_id) || []);
         list.innerHTML = '';
         
-        rooms?.forEach(room => {
+        rooms?.forEach((room, index) => {
             const availableBeds = room.beds?.filter(b => !occupiedBeds.has(b.id) && b.status === 'available') || [];
             const isFull = availableBeds.length === 0;
             const div = document.createElement('div');
             div.className = `room-option ${isFull ? 'disabled' : ''}`;
+            div.style.animationDelay = `${index * 0.05}s`;
             div.innerHTML = `
                 <div class="room-info">
                     <h4>${esc(room.name)}</h4>
                     <p>${availableBeds.length} de ${room.beds?.length || 0} camas disponibles</p>
                 </div>
-                <span class="room-status ${isFull ? 'status-occupied' : 'status-available'}">${isFull ? 'Lleno' : 'Disponible'}</span>
+                <span class="room-status ${isFull ? 'status-occupied' : 'status-available'}">
+                    ${isFull ? 'Lleno' : 'Disponible'}
+                </span>
             `;
             if (!isFull) div.onclick = () => selectDormitory(room, availableBeds, div);
             list.appendChild(div);
         });
     } catch (error) {
         console.error('Error:', error);
-        list.innerHTML = '<p class="text-muted">Error al cargar</p>';
+        list.innerHTML = '<p class="text-muted">Error al cargar disponibilidad</p>';
     }
 }
 
@@ -150,7 +176,12 @@ async function loadPrivateOptions() {
     
     const list = document.getElementById('private-list');
     if (!list) return;
-    list.innerHTML = '<p>Cargando...</p>';
+    
+    // Show loading state
+    list.innerHTML = `
+        <div class="skeleton" style="height: 80px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+        <div class="skeleton" style="height: 80px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+    `;
 
     try {
         const [{ data: reservations }, { data: rooms }] = await Promise.all([
@@ -166,43 +197,50 @@ async function loadPrivateOptions() {
         const occupiedRooms = new Set(reservations?.map(r => r.room_id) || []);
         list.innerHTML = '';
         
-        rooms?.forEach(room => {
+        rooms?.forEach((room, index) => {
             const isOccupied = occupiedRooms.has(room.id);
             const div = document.createElement('div');
             div.className = `room-option ${isOccupied ? 'disabled' : ''}`;
+            div.style.animationDelay = `${index * 0.05}s`;
             div.innerHTML = `
                 <div class="room-info">
                     <h4>${esc(room.name)}</h4>
                     <p>Capacidad: ${room.capacity_total} personas</p>
                 </div>
-                <span class="room-status ${isOccupied ? 'status-occupied' : 'status-available'}">${isOccupied ? 'Ocupada' : 'Disponible'}</span>
+                <span class="room-status ${isOccupied ? 'status-occupied' : 'status-available'}">
+                    ${isOccupied ? 'Ocupada' : 'Disponible'}
+                </span>
             `;
             if (!isOccupied) div.onclick = () => selectPrivateRoom(room, div);
             list.appendChild(div);
         });
     } catch (error) {
         console.error('Error:', error);
-        list.innerHTML = '<p class="text-muted">Error al cargar</p>';
+        list.innerHTML = '<p class="text-muted">Error al cargar disponibilidad</p>';
     }
 }
 
 function selectDormitory(room, availableBeds, element) {
-    document.querySelectorAll('#dormitory-list .room-option').forEach(el => el.classList.remove('selected'));
-    element.classList.add('selected');
+    // Remove previous selections
+    document.querySelectorAll('#dormitory-list .room-option').forEach(el => {
+        el.classList.remove('selected');
+        const existingSelection = el.querySelector('.bed-selection');
+        if (existingSelection) existingSelection.remove();
+    });
     
-    const existingSelection = element.querySelector('.bed-selection');
-    if (existingSelection) existingSelection.remove();
+    element.classList.add('selected');
     
     const bedSelection = document.createElement('div');
     bedSelection.className = 'bed-selection';
-    bedSelection.innerHTML = '<p style="margin: 0.5rem 0; font-size: 0.875rem; color: var(--gray-600);">Selecciona una cama:</p>';
+    bedSelection.innerHTML = '<p style="margin: var(--space-3) 0; font-size: 0.875rem; color: var(--gray-600); font-weight: 600;">Selecciona una cama:</p>';
     const bedGrid = document.createElement('div');
     bedGrid.className = 'bed-list';
     
-    availableBeds.forEach(bed => {
+    availableBeds.forEach((bed, index) => {
         const bedDiv = document.createElement('div');
         bedDiv.className = 'bed-option';
         bedDiv.textContent = bed.bed_number;
+        bedDiv.style.animationDelay = `${index * 0.03}s`;
         bedDiv.onclick = (e) => {
             e.stopPropagation();
             document.querySelectorAll('.bed-option').forEach(b => b.classList.remove('selected'));
@@ -216,6 +254,9 @@ function selectDormitory(room, availableBeds, element) {
     });
     bedSelection.appendChild(bedGrid);
     element.appendChild(bedSelection);
+    
+    // Scroll to show bed selection
+    element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function selectPrivateRoom(room, element) {
@@ -225,6 +266,12 @@ function selectPrivateRoom(room, element) {
     reservationData.bedId = null;
     const btn = document.getElementById('step1-continue');
     if (btn) btn.disabled = false;
+    
+    // Visual feedback
+    element.style.transform = 'scale(1.02)';
+    setTimeout(() => {
+        element.style.transform = '';
+    }, 200);
 }
 
 document.getElementById('step1-form')?.addEventListener('submit', (e) => {
@@ -240,14 +287,19 @@ document.getElementById('step1-form')?.addEventListener('submit', (e) => {
         return;
     }
     
+    // Smooth transition
     document.getElementById('new-reservation-page')?.classList.add('hidden');
     document.getElementById('new-reservation-step2')?.classList.remove('hidden');
+    document.getElementById('new-reservation-step2').scrollTop = 0;
 });
 
 function goToStep(step) {
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-    if (step === 1) document.getElementById('new-reservation-page')?.classList.remove('hidden');
-    else if (step === 2) document.getElementById('new-reservation-step2')?.classList.remove('hidden');
+    if (step === 1) {
+        document.getElementById('new-reservation-page')?.classList.remove('hidden');
+    } else if (step === 2) {
+        document.getElementById('new-reservation-step2')?.classList.remove('hidden');
+    }
 }
 
 document.getElementById('guest-photo')?.addEventListener('change', (e) => {
@@ -257,8 +309,9 @@ document.getElementById('guest-photo')?.addEventListener('change', (e) => {
         reader.onload = (e) => {
             const preview = document.getElementById('guest-photo-preview');
             if (preview) {
-                preview.innerHTML = `<img src="${e.target.result}" alt="Foto">`;
+                preview.innerHTML = `<img src="${e.target.result}" alt="Foto del huésped" style="width: 100%; height: auto; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);">`;
                 preview.classList.remove('hidden');
+                preview.style.animation = 'fadeIn 0.3s ease';
             }
         };
         reader.readAsDataURL(file);
@@ -269,6 +322,7 @@ document.getElementById('step2-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
     document.getElementById('new-reservation-step2')?.classList.add('hidden');
     document.getElementById('new-reservation-step3')?.classList.remove('hidden');
+    document.getElementById('new-reservation-step3').scrollTop = 0;
     updateReservationSummary();
 });
 
@@ -281,10 +335,22 @@ function updateReservationSummary() {
     const summary = document.getElementById('reservation-summary');
     if (summary) {
         summary.innerHTML = `
-            <div class="summary-row"><span>Huésped:</span><span>${esc(document.getElementById('guest-name')?.value)}</span></div>
-            <div class="summary-row"><span>Entrada:</span><span>${formatDateToPanama(new Date(checkInLocal))}</span></div>
-            <div class="summary-row"><span>Salida:</span><span>${formatDateToPanama(new Date(checkOutLocal))}</span></div>
-            <div class="summary-row"><span>Noches:</span><span>${nights}</span></div>
+            <div class="summary-row">
+                <span>Huésped</span>
+                <span style="font-weight: 700;">${esc(document.getElementById('guest-name')?.value)}</span>
+            </div>
+            <div class="summary-row">
+                <span>Entrada</span>
+                <span>${formatDateToPanama(new Date(checkInLocal))}</span>
+            </div>
+            <div class="summary-row">
+                <span>Salida</span>
+                <span>${formatDateToPanama(new Date(checkOutLocal))}</span>
+            </div>
+            <div class="summary-row">
+                <span>Noches</span>
+                <span style="font-weight: 700; color: var(--primary);">${nights} noche${nights !== 1 ? 's' : ''}</span>
+            </div>
         `;
     }
 }
@@ -299,7 +365,18 @@ function updateBalance() {
     const total = parseFloat(document.getElementById('total-amount')?.value) || 0;
     const paid = parseFloat(document.getElementById('initial-payment')?.value) || 0;
     const balanceEl = document.getElementById('balance-due');
-    if (balanceEl) balanceEl.textContent = formatCurrency(total - paid);
+    const balance = total - paid;
+    
+    if (balanceEl) {
+        balanceEl.textContent = formatCurrency(balance);
+        balanceEl.style.color = balance > 0 ? 'var(--warning)' : 'var(--success)';
+        
+        // Add animation
+        balanceEl.style.transform = 'scale(1.1)';
+        setTimeout(() => {
+            balanceEl.style.transform = 'scale(1)';
+        }, 200);
+    }
 }
 
 function toggleReceiptUpload() {
@@ -309,6 +386,7 @@ function toggleReceiptUpload() {
     
     if (method === 'yappy' || method === 'card') {
         uploadGroup?.classList.remove('hidden');
+        uploadGroup.style.animation = 'slideDown 0.3s ease';
         if (receiptInput) receiptInput.required = true;
     } else {
         uploadGroup?.classList.add('hidden');
@@ -317,7 +395,10 @@ function toggleReceiptUpload() {
             receiptInput.value = '';
         }
         const receiptPreview = document.getElementById('receipt-preview');
-        if (receiptPreview) receiptPreview.classList.add('hidden');
+        if (receiptPreview) {
+            receiptPreview.innerHTML = '';
+            receiptPreview.classList.add('hidden');
+        }
     }
 }
 
@@ -328,8 +409,9 @@ document.getElementById('payment-receipt')?.addEventListener('change', (e) => {
         reader.onload = (e) => {
             const preview = document.getElementById('receipt-preview');
             if (preview) {
-                preview.innerHTML = `<img src="${e.target.result}" alt="Comprobante">`;
+                preview.innerHTML = `<img src="${e.target.result}" alt="Comprobante" style="width: 100%; height: auto; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);">`;
                 preview.classList.remove('hidden');
+                preview.style.animation = 'fadeIn 0.3s ease';
             }
         };
         reader.readAsDataURL(file);
@@ -343,7 +425,15 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const btn = document.getElementById('create-reservation-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px; animation: spin 1s linear infinite;">
+                <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"></circle>
+            </svg>
+            Creando reserva...
+        `;
+    }
 
     try {
         const { data: { session } } = await db.auth.getSession();
@@ -361,14 +451,22 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         const receiptFile = document.getElementById('payment-receipt')?.files[0];
         const guestPhotoFile = document.getElementById('guest-photo')?.files[0];
 
-        // Validar comprobante si es necesario
+        // Validate receipt if needed
         if ((paymentMethod === 'yappy' || paymentMethod === 'card') && !receiptFile) {
             showToast('El comprobante es obligatorio para Yappy o Tarjeta', 'error');
-            if (btn) { btn.disabled = false; btn.textContent = '✓ Crear Reserva'; }
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                    Crear Reserva
+                `;
+            }
             return;
         }
 
-        // Subir archivos
+        // Upload files with progress indication
         let guestPhotoUrl = null;
         let receiptUrl = null;
         
@@ -381,7 +479,7 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
             console.warn('Error en upload:', uploadError);
         }
 
-        // Crear huésped
+        // Create guest
         const { data: guest, error: guestError } = await db
             .from('guests')
             .insert([{
@@ -396,7 +494,7 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
 
         if (guestError) throw new Error(`Error al crear huésped: ${guestError.message}`);
 
-        // Crear reserva
+        // Create reservation
         const { data: reservation, error: resError } = await db
             .from('reservations')
             .insert([{
@@ -418,11 +516,8 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         
         if (resError) throw new Error(`Error al crear reserva: ${resError.message}`);
 
-        // =====================================================
-        // PROCESAR PAGO Y ACTUALIZAR CAJA (SI ES EFECTIVO)
-        // =====================================================
+        // Process payment and update cash
         if (initialPayment > 0) {
-            // 1. Crear registro de pago
             const { error: payError } = await db
                 .from('payments')
                 .insert([{
@@ -437,39 +532,49 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                 
             if (payError) console.warn('Error creando pago:', payError);
 
-            // 2. NUEVO: Si es efectivo, sumar automáticamente a caja física
+            // If cash, add to register
             if (paymentMethod === 'cash') {
                 try {
                     const cashResult = await window.addCashIncome(
                         initialPayment,
-                        `Pago reserva - ${guestName} (Hab ${reservationData.roomId || reservationData.bedId})`,
+                        `Pago reserva - ${guestName}`,
                         'reservation',
                         reservation.id
                     );
 
                     if (cashResult.success) {
-                        showToast(`✅ Reserva creada. $${initialPayment.toFixed(2)} agregados a caja. Balance: $${cashResult.newBalance.toFixed(2)}`, 'success');
+                        showToast(`✅ Reserva creada. $${initialPayment.toFixed(2)} agregados a caja`, 'success');
                     } else {
                         showToast('Reserva creada pero hubo un problema con la caja', 'warning');
                     }
                 } catch (cashError) {
                     console.error('Error actualizando caja:', cashError);
-                    showToast('Reserva creada pero error al actualizar caja: ' + cashError.message, 'warning');
+                    showToast('Reserva creada pero error al actualizar caja', 'warning');
                 }
             } else {
-                showToast('Reserva creada exitosamente', 'success');
+                showToast('✅ Reserva creada exitosamente', 'success');
             }
         } else {
-            showToast('Reserva creada exitosamente (sin pago inicial)', 'success');
+            showToast('✅ Reserva creada (sin pago inicial)', 'success');
         }
 
+        // Reset and navigate
+        resetReservationForm();
         showReservations();
 
     } catch (error) {
         console.error('Error:', error);
         showToast('Error al crear reserva: ' + error.message, 'error');
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '✓ Crear Reserva'; }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                    <path d="M20 6L9 17l-5-5"/>
+                </svg>
+                Crear Reserva
+            `;
+        }
     }
 });
 
@@ -486,7 +591,11 @@ async function loadReservationsByDate() {
     const dateUTC = dateToUTC(dateLocal);
     const dateQuery = dateUTC.split('T')[0];
     
-    list.innerHTML = '<p>Cargando...</p>';
+    // Show loading
+    list.innerHTML = `
+        <div class="skeleton" style="height: 100px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+        <div class="skeleton" style="height: 100px; border-radius: var(--radius-lg);"></div>
+    `;
     
     try {
         const { data: reservations, error } = await db.from('reservations')
@@ -498,12 +607,18 @@ async function loadReservationsByDate() {
         if (error) throw error;
 
         if (!reservations || reservations.length === 0) {
-            list.innerHTML = '<p class="text-muted">No hay reservas para esta fecha</p>';
+            list.innerHTML = `
+                <div style="text-align: center; padding: var(--space-10) var(--space-4); color: var(--gray-400);">
+                    <div style="font-size: 3rem; margin-bottom: var(--space-3);">📭</div>
+                    <div style="font-weight: 600;">No hay reservas para esta fecha</div>
+                    <div style="font-size: 0.875rem; margin-top: var(--space-2);">Selecciona otra fecha o crea una nueva reserva</div>
+                </div>
+            `;
             return;
         }
         
         list.innerHTML = '';
-        reservations.forEach(res => {
+        reservations.forEach((res, index) => {
             const resCheckInLocal = dateFromUTC(res.check_in_date);
             const resCheckInStr = resCheckInLocal.toISOString().split('T')[0];
             const isCheckin = resCheckInStr === dateLocal;
@@ -511,33 +626,43 @@ async function loadReservationsByDate() {
             const location = res.bed ? `Cama ${res.bed.bed_number} - Hab ${res.bed.room?.number}` : res.room?.name || 'N/A';
             const card = document.createElement('div');
             card.className = `reservation-card status-${res.status}`;
+            card.style.animationDelay = `${index * 0.05}s`;
             card.onclick = () => showReservationDetail(res.id);
             card.innerHTML = `
                 <div class="reservation-header">
                     <span class="reservation-guest">${esc(res.guest?.full_name)}</span>
-                    <span class="badge" style="background: ${isCheckin ? '#d1fae5' : '#fee2e2'}; color: ${isCheckin ? '#065f46' : '#991b1b'}">${isCheckin ? 'CHECK-IN' : 'CHECK-OUT'}</span>
+                    <span class="badge" style="background: ${isCheckin ? 'var(--success-light)' : 'var(--danger-light)'}; color: ${isCheckin ? '#065f46' : '#991b1b'}; font-size: 0.625rem;">
+                        ${isCheckin ? 'CHECK-IN' : 'CHECK-OUT'}
+                    </span>
                 </div>
                 <div class="reservation-details">
                     <span>🛏️ ${esc(location)}</span>
                     <span>📅 ${formatDate(res.check_in_date)} - ${formatDate(res.check_out_date)}</span>
                 </div>
                 <div class="reservation-payment">
-                    <span class="payment-badge payment-${res.payment_status}">${res.payment_status === 'paid' ? 'Pagado' : res.payment_status === 'partial' ? 'Parcial' : 'Pendiente'}</span>
-                    <span>${formatCurrency(res.total_amount)}</span>
+                    <span class="payment-badge payment-${res.payment_status}">
+                        ${res.payment_status === 'paid' ? 'Pagado' : res.payment_status === 'partial' ? 'Parcial' : 'Pendiente'}
+                    </span>
+                    <span style="font-weight: 700; font-family: var(--font-sans);">${formatCurrency(res.total_amount)}</span>
                 </div>
             `;
             list.appendChild(card);
         });
     } catch (error) {
         console.error('Error:', error);
-        list.innerHTML = '<p class="text-muted">Error al cargar</p>';
+        list.innerHTML = '<p class="text-muted">Error al cargar reservas</p>';
     }
 }
 
 function showTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
     const tabEl = document.getElementById(`tab-${tab}`);
-    if (tabEl) tabEl.classList.add('active');
+    if (tabEl) {
+        tabEl.classList.add('active');
+        // Add ripple effect
+        tabEl.style.transform = 'scale(0.95)';
+        setTimeout(() => tabEl.style.transform = '', 150);
+    }
     loadReservationsByDate();
 }
 
@@ -552,32 +677,75 @@ async function showReservationDetail(reservationId) {
         
         const location = res.bed ? `Cama ${res.bed.bed_number} - Hab ${res.bed.room?.number}` : res.room?.name || 'N/A';
         const guestPhotoHtml = res.guest?.photo_url ? 
-            `<div style="margin: 1rem 0;"><img src="${res.guest.photo_url}" style="max-width: 100%; border-radius: var(--radius); max-height: 200px; object-fit: cover;"></div>` : '';
+            `<div style="margin: var(--space-4) 0; border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-md);">
+                <img src="${res.guest.photo_url}" style="width: 100%; max-height: 250px; object-fit: cover; display: block;">
+            </div>` : '';
         
         const content = document.getElementById('reservation-detail-content');
         if (content) {
             content.innerHTML = `
                 <div class="detail-section">
-                    <h4>Información General</h4>
+                    <h4>👤 Información del Huésped</h4>
                     ${guestPhotoHtml}
-                    <div class="detail-row"><span class="detail-label">Huésped</span><span class="detail-value">${esc(res.guest?.full_name)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${esc(res.guest?.email) || 'N/A'}</span></div>
-                    <div class="detail-row"><span class="detail-label">Nacionalidad</span><span class="detail-value">${esc(res.guest?.nationality) || 'N/A'}</span></div>
+                    <div class="detail-row">
+                        <span class="detail-label">Nombre</span>
+                        <span class="detail-value">${esc(res.guest?.full_name)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Email</span>
+                        <span class="detail-value">${esc(res.guest?.email) || 'N/A'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Nacionalidad</span>
+                        <span class="detail-value">${esc(res.guest?.nationality) || 'N/A'}</span>
+                    </div>
                 </div>
                 <div class="detail-section">
-                    <h4>Alojamiento</h4>
-                    <div class="detail-row"><span class="detail-label">Ubicación</span><span class="detail-value">${esc(location)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Entrada</span><span class="detail-value">${formatDate(res.check_in_date)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Salida</span><span class="detail-value">${formatDate(res.check_out_date)}</span></div>
+                    <h4>🏨 Alojamiento</h4>
+                    <div class="detail-row">
+                        <span class="detail-label">Ubicación</span>
+                        <span class="detail-value">${esc(location)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Entrada</span>
+                        <span class="detail-value">${formatDate(res.check_in_date)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Salida</span>
+                        <span class="detail-value">${formatDate(res.check_out_date)}</span>
+                    </div>
                 </div>
                 <div class="detail-section">
-                    <h4>Pagos</h4>
-                    <div class="detail-row"><span class="detail-label">Total</span><span class="detail-value">${formatCurrency(res.total_amount)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Pagado</span><span class="detail-value">${formatCurrency(res.amount_paid)}</span></div>
-                    <div class="detail-row"><span class="detail-label">Pendiente</span><span class="detail-value" style="color: ${res.balance_due > 0 ? 'var(--danger)' : 'var(--success)'}">${formatCurrency(res.balance_due)}</span></div>
-                    ${res.payments?.map(p => `<div class="detail-row" style="font-size:0.875rem;"><span class="detail-label">${formatDateTime(p.created_at)} - ${p.payment_method}</span><span class="detail-value">${formatCurrency(p.amount)}</span></div>`).join('') || ''}
+                    <h4>💳 Pagos</h4>
+                    <div class="detail-row">
+                        <span class="detail-label">Total</span>
+                        <span class="detail-value">${formatCurrency(res.total_amount)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Pagado</span>
+                        <span class="detail-value" style="color: var(--success);">${formatCurrency(res.amount_paid)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Pendiente</span>
+                        <span class="detail-value" style="color: ${res.balance_due > 0 ? 'var(--danger)' : 'var(--success)'}; font-weight: 800;">
+                            ${formatCurrency(res.balance_due)}
+                        </span>
+                    </div>
+                    ${res.payments?.map(p => `
+                        <div class="detail-row" style="font-size: 0.875rem; background: var(--gray-50); padding: var(--space-3); border-radius: var(--radius-md); margin-top: var(--space-2);">
+                            <span class="detail-label">${formatDateTime(p.created_at)} - ${p.payment_method}</span>
+                            <span class="detail-value">${formatCurrency(p.amount)}</span>
+                        </div>
+                    `).join('') || ''}
                 </div>
-                ${res.notes ? `<div class="detail-section"><h4>Notas</h4><p style="font-size:0.875rem;color:var(--gray-600);">${esc(res.notes)}</p></div>` : ''}
+                ${res.notes ? `
+                    <div class="detail-section">
+                        <h4>📝 Notas</h4>
+                        <p style="font-size: 0.9375rem; color: var(--gray-600); line-height: 1.6; background: var(--gray-50); padding: var(--space-4); border-radius: var(--radius-lg);">
+                            ${esc(res.notes)}
+                        </p>
+                    </div>
+                ` : ''}
             `;
         }
         
@@ -587,22 +755,66 @@ async function showReservationDetail(reservationId) {
             const isAdmin = currentProfile?.role === 'admin';
             
             if (res.status !== 'cancelled' && res.status !== 'checked_out') {
-                actions.innerHTML += `<button onclick="openEditReservation('${res.id}')" class="btn btn-secondary">✏️ Editar</button>`;
+                actions.innerHTML += `
+                    <button onclick="openEditReservation('${res.id}')" class="btn btn-secondary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                        Editar
+                    </button>
+                `;
             }
             if (res.status === 'confirmed') {
-                actions.innerHTML += `<button onclick="doCheckIn('${res.id}')" class="btn btn-primary">Check-in</button>`;
+                actions.innerHTML += `
+                    <button onclick="doCheckIn('${res.id}')" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                        Check-in
+                    </button>
+                `;
             }
             if (res.status === 'checked_in') {
-                actions.innerHTML += `<button onclick="doCheckOut('${res.id}')" class="btn btn-warning">Check-out</button>`;
+                actions.innerHTML += `
+                    <button onclick="doCheckOut('${res.id}')" class="btn btn-warning">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+                        </svg>
+                        Check-out
+                    </button>
+                `;
                 if (res.balance_due > 0) {
-                    actions.innerHTML += `<button onclick="addPayment('${res.id}')" class="btn btn-success">Registrar pago</button>`;
+                    actions.innerHTML += `
+                        <button onclick="addPayment('${res.id}')" class="btn btn-success">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                                <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                            Registrar pago
+                        </button>
+                    `;
                 }
             }
             if (res.status !== 'cancelled' && res.status !== 'checked_out') {
-                actions.innerHTML += `<button onclick="cancelReservation('${res.id}')" class="btn btn-danger">Cancelar</button>`;
+                actions.innerHTML += `
+                    <button onclick="cancelReservation('${res.id}')" class="btn btn-danger">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                            <path d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        Cancelar
+                    </button>
+                `;
             }
             if (isAdmin) {
-                actions.innerHTML += `<button onclick="deleteReservation('${res.id}')" class="btn btn-danger" style="background:#7f1d1d;">🗑️ Eliminar</button>`;
+                actions.innerHTML += `
+                    <button onclick="deleteReservation('${res.id}')" class="btn btn-danger" style="background: #7f1d1d;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        Eliminar
+                    </button>
+                `;
             }
         }
         
@@ -614,13 +826,14 @@ async function showReservationDetail(reservationId) {
 }
 
 async function deleteReservation(id) {
-    if (!confirm('⚠️ ¿Eliminar esta reserva permanentemente?')) return;
+    if (!confirm('⚠️ ¿Eliminar esta reserva permanentemente? Esta acción no se puede deshacer.')) return;
+    
     try {
         await db.from('payments').delete().eq('reservation_id', id);
         await db.from('transactions').delete().eq('reservation_id', id);
         const { error } = await db.from('reservations').delete().eq('id', id);
         if (error) throw error;
-        showToast('Reserva eliminada', 'success');
+        showToast('Reserva eliminada permanentemente', 'success');
         showReservations();
     } catch (error) {
         console.error('Error:', error);
@@ -635,7 +848,10 @@ async function openEditReservation(reservationId) {
             .eq('id', reservationId)
             .single();
             
-        if (error || !res) { showToast('Error al cargar reserva', 'error'); return; }
+        if (error || !res) {
+            showToast('Error al cargar reserva', 'error');
+            return;
+        }
         
         document.getElementById('edit-res-id').value = res.id;
         
@@ -648,7 +864,7 @@ async function openEditReservation(reservationId) {
         document.getElementById('edit-notes').value = res.notes || '';
         
         const select = document.getElementById('edit-room-bed');
-        select.innerHTML = '<option value="">Cargando...</option>';
+        select.innerHTML = '<option value="">Cargando opciones...</option>';
         
         const [{ data: rooms }, { data: beds }] = await Promise.all([
             db.from('rooms').select('*').order('number'),
@@ -663,9 +879,11 @@ async function openEditReservation(reservationId) {
             const currentBed = beds.find(b => b.id === res.bed_id);
             select.innerHTML += `<option value="bed-${res.bed_id}" selected>Cama ${currentBed?.bed_number} - Hab ${currentBed?.room?.number} (actual)</option>`;
         }
+        
         rooms.filter(r => r.type === 'private' && r.id !== res.room_id).forEach(room => {
             select.innerHTML += `<option value="room-${room.id}">${room.name} (Privada)</option>`;
         });
+        
         beds.filter(b => b.id !== res.bed_id && b.status === 'available').forEach(bed => {
             select.innerHTML += `<option value="bed-${bed.id}">Cama ${bed.bed_number} - Hab ${bed.room?.number}</option>`;
         });
@@ -674,7 +892,7 @@ async function openEditReservation(reservationId) {
         
     } catch (error) {
         console.error('Error:', error);
-        showToast('Error al cargar', 'error');
+        showToast('Error al cargar datos', 'error');
     }
 }
 
@@ -708,7 +926,7 @@ document.getElementById('edit-reservation-form')?.addEventListener('submit', asy
     try {
         const { error } = await db.from('reservations').update(updateData).eq('id', id);
         if (error) throw error;
-        showToast('Reserva actualizada', 'success');
+        showToast('✅ Reserva actualizada correctamente', 'success');
         closeEditModal();
         showReservations();
     } catch (err) {
@@ -720,7 +938,7 @@ async function doCheckIn(reservationId) {
     try {
         const { error } = await db.from('reservations').update({ status: 'checked_in' }).eq('id', reservationId);
         if (error) throw error;
-        showToast('Check-in realizado', 'success');
+        showToast('✅ Check-in realizado exitosamente', 'success');
         showReservations();
     } catch (error) {
         showToast('Error en check-in: ' + error.message, 'error');
@@ -731,7 +949,7 @@ async function doCheckOut(reservationId) {
     try {
         const { error } = await db.from('reservations').update({ status: 'checked_out' }).eq('id', reservationId);
         if (error) throw error;
-        showToast('Check-out realizado', 'success');
+        showToast('✅ Check-out realizado exitosamente', 'success');
         showReservations();
     } catch (error) {
         showToast('Error en check-out: ' + error.message, 'error');
@@ -756,7 +974,7 @@ async function cancelReservation(reservationId) {
             .eq('id', reservationId);
         if (error) throw error;
         
-        // NUEVO: Si hay reembolso en efectivo, restar de caja
+        // If cash refund needed, subtract from register
         if (totalCashRefund > 0) {
             try {
                 await window.subtractCashExpense(
@@ -764,13 +982,13 @@ async function cancelReservation(reservationId) {
                     `Reembolso cancelación - ${res.guest?.full_name}`,
                     'refund'
                 );
-                showToast(`Reserva cancelada. $${totalCashRefund.toFixed(2)} descontados de caja por reembolso.`, 'success');
+                showToast(`Reserva cancelada. $${totalCashRefund.toFixed(2)} descontados de caja`, 'success');
             } catch (cashError) {
                 console.error('Error reembolsando caja:', cashError);
                 showToast('Reserva cancelada pero error al actualizar caja', 'warning');
             }
         } else {
-            showToast('Reserva cancelada', 'success');
+            showToast('✅ Reserva cancelada', 'success');
         }
         
         showReservations();
@@ -795,3 +1013,4 @@ window.doCheckIn = doCheckIn;
 window.doCheckOut = doCheckOut;
 window.cancelReservation = cancelReservation;
 window.deleteReservation = deleteReservation;
+
