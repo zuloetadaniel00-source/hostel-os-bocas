@@ -1,20 +1,57 @@
 // =====================================================
 // DASHBOARD - OPTIMIZADO CON ZONA HORARIA PANAMÁ
+// Premium UX Edition
 // =====================================================
 
 async function loadDashboard() {
-    // CORRECCIÓN: Usar fecha de Panamá para el dashboard
     const today = getTodayInPanama();
     const dateEl = document.getElementById('current-date');
-    if (dateEl) dateEl.textContent = `Hoy: ${formatDateToPanama(new Date())}`;
+    if (dateEl) {
+        const formattedDate = new Intl.DateTimeFormat('es-PA', {
+            timeZone: 'America/Panama',
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        }).format(new Date());
+        dateEl.textContent = formattedDate;
+    }
     
-    // Cargar en paralelo sin bloquear UI
-    Promise.all([
-        loadOccupancy(),
-        loadTodayStats(),
-        loadAlerts(),
-        loadUpcomingReservations()
-    ]).catch(console.error);
+    // Show loading states
+    showDashboardSkeletons();
+    
+    // Load data in parallel
+    try {
+        await Promise.all([
+            loadOccupancy(),
+            loadTodayStats(),
+            loadAlerts(),
+            loadUpcomingReservations()
+        ]);
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+        showToast('Error al cargar el dashboard', 'error');
+    }
+}
+
+function showDashboardSkeletons() {
+    const alertsList = document.getElementById('alerts-list');
+    const upcomingList = document.getElementById('upcoming-list');
+    
+    if (alertsList) {
+        alertsList.innerHTML = `
+            <div class="skeleton" style="height: 70px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+            <div class="skeleton" style="height: 70px; border-radius: var(--radius-lg);"></div>
+        `;
+    }
+    
+    if (upcomingList) {
+        upcomingList.innerHTML = `
+            <div class="skeleton" style="height: 90px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+            <div class="skeleton" style="height: 90px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+            <div class="skeleton" style="height: 90px; border-radius: var(--radius-lg);"></div>
+        `;
+    }
 }
 
 async function loadOccupancy() {
@@ -46,8 +83,17 @@ async function loadOccupancy() {
         const occupiedEl = document.getElementById('occupied-beds');
         const totalEl = document.getElementById('total-beds');
         
-        if (percentEl) percentEl.textContent = percentage + '%';
-        if (fillEl) fillEl.style.width = percentage + '%';
+        // Animate the percentage
+        if (percentEl) {
+            animateNumber(percentEl, 0, percentage, 1000, '%');
+        }
+        
+        if (fillEl) {
+            setTimeout(() => {
+                fillEl.style.width = percentage + '%';
+            }, 200);
+        }
+        
         if (occupiedEl) occupiedEl.textContent = occupiedBeds;
         if (totalEl) totalEl.textContent = totalBeds;
         
@@ -56,8 +102,31 @@ async function loadOccupancy() {
     }
 }
 
+function animateNumber(element, start, end, duration, suffix = '') {
+    const range = end - start;
+    const minTimer = 50;
+    let stepTime = Math.abs(Math.floor(duration / range));
+    stepTime = Math.max(stepTime, minTimer);
+    
+    let startTime = new Date().getTime();
+    let endTime = startTime + duration;
+    let timer;
+    
+    function run() {
+        let now = new Date().getTime();
+        let remaining = Math.max((endTime - now) / duration, 0);
+        let value = Math.round(end - (remaining * range));
+        element.textContent = value + suffix;
+        if (value == end) {
+            clearInterval(timer);
+        }
+    }
+    
+    timer = setInterval(run, stepTime);
+    run();
+}
+
 async function loadTodayStats() {
-    // CORRECCIÓN: Usar fecha de Panamá para consultas
     const today = getTodayInPanama();
     
     try {
@@ -69,8 +138,12 @@ async function loadTodayStats() {
         const checkinsEl = document.getElementById('today-checkins');
         const checkoutsEl = document.getElementById('today-checkouts');
         
-        if (checkinsEl) checkinsEl.textContent = checkins?.length || 0;
-        if (checkoutsEl) checkoutsEl.textContent = checkouts?.length || 0;
+        if (checkinsEl) {
+            animateNumber(checkinsEl, 0, checkins?.length || 0, 800);
+        }
+        if (checkoutsEl) {
+            animateNumber(checkoutsEl, 0, checkouts?.length || 0, 800);
+        }
         
         if (currentProfile?.role === 'admin') {
             const { data: transactions } = await db
@@ -84,7 +157,10 @@ async function loadTodayStats() {
                 .reduce((sum, t) => sum + parseFloat(t.amount), 0) || 0;
             
             const incomeEl = document.getElementById('today-income');
-            if (incomeEl) incomeEl.textContent = formatCurrency(income);
+            if (incomeEl) {
+                incomeEl.textContent = formatCurrency(income);
+                incomeEl.style.animation = 'pulse 0.5s ease';
+            }
         }
     } catch (error) {
         console.error('Error loading today stats:', error);
@@ -108,7 +184,8 @@ async function loadAlerts() {
             alerts.push({
                 type: 'cleaning',
                 title: `Limpieza pendiente: Cama ${bed.bed_number} Hab ${bed.room?.number}`,
-                urgent: true
+                urgent: true,
+                icon: '🛏️'
             });
         });
         
@@ -116,11 +193,11 @@ async function loadAlerts() {
             alerts.push({
                 type: 'cleaning',
                 title: `Limpieza pendiente: ${room.name}`,
-                urgent: true
+                urgent: true,
+                icon: '🧹'
             });
         });
         
-        // CORRECCIÓN: Usar fecha de Panamá
         const today = getTodayInPanama();
         const { data: pendingPayments } = await db
             .from('reservations')
@@ -133,22 +210,31 @@ async function loadAlerts() {
             alerts.push({
                 type: 'payment',
                 title: `Pago pendiente: ${res.guest?.full_name}`,
-                urgent: false
+                urgent: false,
+                icon: '💰'
             });
         });
         
         if (alerts.length === 0) {
-            alertsList.innerHTML = '<p class="text-muted">No hay alertas pendientes</p>';
+            alertsList.innerHTML = `
+                <div style="text-align: center; padding: var(--space-8) var(--space-4); color: var(--gray-400);">
+                    <div style="font-size: 3rem; margin-bottom: var(--space-3);">✨</div>
+                    <div style="font-weight: 600;">No hay alertas pendientes</div>
+                    <div style="font-size: 0.875rem; margin-top: var(--space-2);">Todo está bajo control</div>
+                </div>
+            `;
             return;
         }
         
-        alerts.forEach(alert => {
+        alerts.forEach((alert, index) => {
             const div = document.createElement('div');
             div.className = `alert-item ${alert.urgent ? 'urgent' : ''}`;
+            div.style.animationDelay = `${index * 0.1}s`;
             div.innerHTML = `
-                <span class="alert-icon">${alert.type === 'cleaning' ? '🧹' : '💰'}</span>
+                <span class="alert-icon">${alert.icon}</span>
                 <div class="alert-content">
                     <div class="alert-title">${esc(alert.title)}</div>
+                    <div class="alert-meta">${alert.urgent ? 'Requiere atención inmediata' : 'Pendiente'}</div>
                 </div>
             `;
             alertsList.appendChild(div);
@@ -164,7 +250,6 @@ async function loadUpcomingReservations() {
     const list = document.getElementById('upcoming-list');
     if (!list) return;
     
-    // CORRECCIÓN: Usar fecha de Panamá
     const today = getTodayInPanama();
     
     try {
@@ -177,18 +262,25 @@ async function loadUpcomingReservations() {
             .limit(5);
         
         if (!reservations || reservations.length === 0) {
-            list.innerHTML = '<p class="text-muted">No hay reservas próximas</p>';
+            list.innerHTML = `
+                <div style="text-align: center; padding: var(--space-8) var(--space-4); color: var(--gray-400);">
+                    <div style="font-size: 3rem; margin-bottom: var(--space-3);">📅</div>
+                    <div style="font-weight: 600;">No hay reservas próximas</div>
+                    <div style="font-size: 0.875rem; margin-top: var(--space-2);">El calendario está libre</div>
+                </div>
+            `;
             return;
         }
         
         list.innerHTML = '';
-        reservations.forEach(res => {
+        reservations.forEach((res, index) => {
             const location = res.bed 
                 ? `Cama ${res.bed.bed_number} - Hab ${res.bed.room?.number}`
                 : res.room?.name || 'N/A';
             
             const card = document.createElement('div');
             card.className = 'reservation-card';
+            card.style.animationDelay = `${index * 0.1}s`;
             card.onclick = () => showReservationDetail(res.id);
             card.innerHTML = `
                 <div class="reservation-header">
