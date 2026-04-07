@@ -1,5 +1,5 @@
 // =====================================================
-// RESERVAS - OPTIMIZADO (CORREGIDO)
+// RESERVAS - OPTIMIZADO CON ZONA HORARIA Y AUTO-CAJA
 // =====================================================
 
 let reservationData = {
@@ -73,6 +73,17 @@ function resetReservationForm() {
     const receiptInput = document.getElementById('payment-receipt');
     if (uploadGroup) uploadGroup.classList.add('hidden');
     if (receiptInput) receiptInput.required = false;
+    
+    // CORRECCIÓN: Resetear fechas a hoy y mañana en Panamá
+    const today = getTodayInPanama();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    const checkInEl = document.getElementById('check-in-date');
+    const checkOutEl = document.getElementById('check-out-date');
+    if (checkInEl) checkInEl.value = today;
+    if (checkOutEl) checkOutEl.value = tomorrowStr;
 }
 
 function showDormitoryOptions() {
@@ -94,9 +105,15 @@ function updateAvailability() {
 }
 
 async function loadDormitoryOptions() {
-    const checkIn = document.getElementById('check-in-date')?.value;
-    const checkOut = document.getElementById('check-out-date')?.value;
-    if (!checkIn || !checkOut) return;
+    // CORRECCIÓN: Obtener fechas y convertir a UTC para consulta
+    const checkInLocal = document.getElementById('check-in-date')?.value;
+    const checkOutLocal = document.getElementById('check-out-date')?.value;
+    
+    if (!checkInLocal || !checkOutLocal) return;
+    
+    // Convertir a UTC para consulta a Supabase
+    const checkInUTC = dateToUTC(checkInLocal);
+    const checkOutUTC = dateToUTC(checkOutLocal);
     
     const list = document.getElementById('dormitory-list');
     if (!list) return;
@@ -106,8 +123,8 @@ async function loadDormitoryOptions() {
         const [{ data: rooms }, { data: reservations }] = await Promise.all([
             db.from('rooms').select('*, beds(*)').eq('type', 'dormitory'),
             db.from('reservations').select('bed_id, status')
-                .gte('check_in_date', checkIn)
-                .lte('check_in_date', checkOut)
+                .gte('check_in_date', checkInUTC.split('T')[0])
+                .lte('check_in_date', checkOutUTC.split('T')[0])
                 .neq('status', 'cancelled')
                 .neq('status', 'checked_out')
                 .is('deleted_at', null)
@@ -138,9 +155,15 @@ async function loadDormitoryOptions() {
 }
 
 async function loadPrivateOptions() {
-    const checkIn = document.getElementById('check-in-date')?.value;
-    const checkOut = document.getElementById('check-out-date')?.value;
-    if (!checkIn || !checkOut) return;
+    // CORRECCIÓN: Obtener fechas y convertir a UTC para consulta
+    const checkInLocal = document.getElementById('check-in-date')?.value;
+    const checkOutLocal = document.getElementById('check-out-date')?.value;
+    
+    if (!checkInLocal || !checkOutLocal) return;
+    
+    // Convertir a UTC para consulta a Supabase
+    const checkInUTC = dateToUTC(checkInLocal);
+    const checkOutUTC = dateToUTC(checkOutLocal);
     
     const list = document.getElementById('private-list');
     if (!list) return;
@@ -149,8 +172,8 @@ async function loadPrivateOptions() {
     try {
         const [{ data: reservations }, { data: rooms }] = await Promise.all([
             db.from('reservations').select('room_id, status')
-                .gte('check_in_date', checkIn)
-                .lte('check_in_date', checkOut)
+                .gte('check_in_date', checkInUTC.split('T')[0])
+                .lte('check_in_date', checkOutUTC.split('T')[0])
                 .neq('status', 'cancelled')
                 .neq('status', 'checked_out')
                 .is('deleted_at', null),
@@ -223,8 +246,13 @@ function selectPrivateRoom(room, element) {
 
 document.getElementById('step1-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    reservationData.checkIn = document.getElementById('check-in-date')?.value;
-    reservationData.checkOut = document.getElementById('check-out-date')?.value;
+    
+    // CORRECCIÓN: Guardar fechas locales y convertir a UTC para envío
+    const checkInLocal = document.getElementById('check-in-date')?.value;
+    const checkOutLocal = document.getElementById('check-out-date')?.value;
+    
+    reservationData.checkIn = dateToUTC(checkInLocal);
+    reservationData.checkOut = dateToUTC(checkOutLocal);
     
     if (!reservationData.roomId && !reservationData.bedId) {
         showToast('Selecciona una habitación o cama', 'error');
@@ -264,17 +292,19 @@ document.getElementById('step2-form')?.addEventListener('submit', (e) => {
 });
 
 function updateReservationSummary() {
-    const checkIn = reservationData.checkIn;
-    const checkOut = reservationData.checkOut;
-    if (!checkIn || !checkOut) return;
+    // CORRECCIÓN: Usar fechas locales para cálculo de noches
+    const checkInLocal = document.getElementById('check-in-date')?.value;
+    const checkOutLocal = document.getElementById('check-out-date')?.value;
     
-    const nights = Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24));
+    if (!checkInLocal || !checkOutLocal) return;
+    
+    const nights = Math.ceil((new Date(checkOutLocal) - new Date(checkInLocal)) / (1000 * 60 * 60 * 24));
     const summary = document.getElementById('reservation-summary');
     if (summary) {
         summary.innerHTML = `
             <div class="summary-row"><span>Huésped:</span><span>${esc(document.getElementById('guest-name')?.value)}</span></div>
-            <div class="summary-row"><span>Entrada:</span><span>${formatDate(checkIn)}</span></div>
-            <div class="summary-row"><span>Salida:</span><span>${formatDate(checkOut)}</span></div>
+            <div class="summary-row"><span>Entrada:</span><span>${formatDateToPanama(new Date(checkInLocal))}</span></div>
+            <div class="summary-row"><span>Salida:</span><span>${formatDateToPanama(new Date(checkOutLocal))}</span></div>
             <div class="summary-row"><span>Noches:</span><span>${nights}</span></div>
         `;
     }
@@ -293,9 +323,6 @@ function updateBalance() {
     if (balanceEl) balanceEl.textContent = formatCurrency(total - paid);
 }
 
-// =====================================================
-// CORRECCIÓN 1: comprobante solo obligatorio en yappy/tarjeta
-// =====================================================
 function toggleReceiptUpload() {
     const method = document.querySelector('input[name="payment-method"]:checked')?.value;
     const uploadGroup = document.getElementById('receipt-upload-group');
@@ -333,7 +360,7 @@ document.getElementById('payment-receipt')?.addEventListener('change', (e) => {
 });
 
 // =====================================================
-// CREAR RESERVA - CORRECCIÓN 2: transacción siempre se registra
+// CREAR RESERVA - CON AUTO-SUMA A CAJA
 // =====================================================
 document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -396,21 +423,19 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
             throw new Error(`Error al crear huésped: ${guestError.message}`);
         }
 
-        // Crear reserva
+        // Crear reserva con fechas UTC
         const { data: reservation, error: resError } = await db
             .from('reservations')
             .insert([{
                 guest_id: guest.id,
                 room_id: reservationData.roomId,
                 bed_id: reservationData.bedId,
-                check_in_date: reservationData.checkIn,
-                check_out_date: reservationData.checkOut,
+                check_in_date: reservationData.checkIn,  // Ya está en UTC
+                check_out_date: reservationData.checkOut, // Ya está en UTC
                 total_amount: totalAmount,
                 amount_paid: initialPayment,
                 status: status === 'confirmed' ? 'confirmed' : 'pending',
                 payment_status: initialPayment >= totalAmount ? 'paid' : (initialPayment > 0 ? 'partial' : 'pending'),
-                balance_due: Math.max(0, totalAmount - initialPayment),
-                payment_method: paymentMethod,
                 source: 'walk_in',
                 notes: notesEl?.value || null,
                 created_by: userId
@@ -424,7 +449,7 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         }
 
         // =====================================================
-        // CORRECCIÓN 2: registrar pago y transacción si hay monto
+        // PROCESAR PAGO Y ACTUALIZAR CAJA
         // =====================================================
         if (initialPayment > 0) {
             // 1. Crear pago
@@ -446,20 +471,35 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                 console.warn('Payment creation failed:', payCatchError);
             }
             
-            // El trigger trigger_create_transaction_from_payment crea la transacción
-            // automáticamente al insertar en payments. No se inserta manualmente.
-
-            // 3. Actualizar caja si es efectivo (REQUERIMIENTO 3.2)
-            if (paymentMethod === 'cash' && window.updateCashBalance) {
+            // 2. NUEVO: Actualizar caja automáticamente si es efectivo
+            if (paymentMethod === 'cash') {
                 try {
-                    await window.updateCashBalance(initialPayment, 'add');
+                    // Usar la función RPC si existe, o insertar directamente
+                    const { error: cashError } = await db.rpc('process_cash_transaction', {
+                        p_type: 'income',
+                        p_category: 'reservation_payment',
+                        p_amount: initialPayment,
+                        p_description: `Pago reserva - ${guest.full_name}`,
+                        p_user_id: userId
+                    });
+                    
+                    if (cashError) {
+                        // Fallback: actualizar manualmente
+                        await updateCashBalance(initialPayment, 'add');
+                    }
+                    
+                    showToast(`✅ Reserva creada y $${initialPayment.toFixed(2)} agregados a caja`, 'success');
                 } catch (cashError) {
                     console.error('Error updating cash balance:', cashError);
+                    showToast('Reserva creada pero error al actualizar caja', 'warning');
                 }
+            } else {
+                showToast('Reserva creada exitosamente', 'success');
             }
+        } else {
+            showToast('Reserva creada exitosamente', 'success');
         }
 
-        showToast('Reserva creada exitosamente', 'success');
         showReservations();
 
     } catch (error) {
@@ -471,15 +511,25 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
 });
 
 async function loadReservationsByDate() {
-    const date = document.getElementById('reservations-date')?.value;
+    const dateLocal = document.getElementById('reservations-date')?.value;
     const list = document.getElementById('reservations-list');
     if (!list) return;
+    
+    if (!dateLocal) {
+        list.innerHTML = '<p class="text-muted">Selecciona una fecha</p>';
+        return;
+    }
+    
+    // CORRECCIÓN: Convertir fecha local a UTC para consulta
+    const dateUTC = dateToUTC(dateLocal);
+    const dateQuery = dateUTC.split('T')[0];
+    
     list.innerHTML = '<p>Cargando...</p>';
     
     try {
         const { data: reservations, error } = await db.from('reservations')
             .select('*, guest:guest_id(full_name), room:room_id(number, name), bed:bed_id(bed_number, room:room_id(number))')
-            .or(`check_in_date.eq.${date},check_out_date.eq.${date}`)
+            .or(`check_in_date.eq.${dateQuery},check_out_date.eq.${dateQuery}`)
             .is('deleted_at', null)
             .order('created_at', { ascending: false });
 
@@ -492,7 +542,12 @@ async function loadReservationsByDate() {
         
         list.innerHTML = '';
         reservations.forEach(res => {
-            const isCheckin = res.check_in_date === date;
+            // CORRECCIÓN: Convertir fechas UTC a local para comparación
+            const resCheckInLocal = dateFromUTC(res.check_in_date);
+            const resCheckInStr = resCheckInLocal.toISOString().split('T')[0];
+            
+            const isCheckin = resCheckInStr === dateLocal;
+            
             const location = res.bed ? `Cama ${res.bed.bed_number} - Hab ${res.bed.room?.number}` : res.room?.name || 'N/A';
             const card = document.createElement('div');
             card.className = `reservation-card status-${res.status}`;
@@ -623,8 +678,13 @@ async function openEditReservation(reservationId) {
         if (error || !res) { showToast('Error al cargar reserva', 'error'); return; }
         
         document.getElementById('edit-res-id').value = res.id;
-        document.getElementById('edit-checkin').value = res.check_in_date;
-        document.getElementById('edit-checkout').value = res.check_out_date;
+        
+        // CORRECCIÓN: Convertir fechas UTC a local para el formulario
+        const checkInLocal = dateFromUTC(res.check_in_date);
+        const checkOutLocal = dateFromUTC(res.check_out_date);
+        
+        document.getElementById('edit-checkin').value = checkInLocal.toISOString().split('T')[0];
+        document.getElementById('edit-checkout').value = checkOutLocal.toISOString().split('T')[0];
         document.getElementById('edit-total').value = res.total_amount;
         document.getElementById('edit-notes').value = res.notes || '';
         
@@ -664,9 +724,16 @@ document.getElementById('edit-reservation-form')?.addEventListener('submit', asy
     const id = document.getElementById('edit-res-id')?.value;
     const roomBedValue = document.getElementById('edit-room-bed')?.value;
     
+    const checkInLocal = document.getElementById('edit-checkin')?.value;
+    const checkOutLocal = document.getElementById('edit-checkout')?.value;
+    
+    // CORRECCIÓN: Convertir fechas locales a UTC
+    const checkInUTC = dateToUTC(checkInLocal);
+    const checkOutUTC = dateToUTC(checkOutLocal);
+    
     let updateData = {
-        check_in_date: document.getElementById('edit-checkin')?.value,
-        check_out_date: document.getElementById('edit-checkout')?.value,
+        check_in_date: checkInUTC,
+        check_out_date: checkOutUTC,
         total_amount: parseFloat(document.getElementById('edit-total')?.value) || 0,
         notes: document.getElementById('edit-notes')?.value,
         updated_at: new Date().toISOString()
@@ -739,7 +806,7 @@ async function cancelReservation(reservationId) {
                 payment_method: 'cash',
                 description: `Reembolso cancelación: ${res.guest?.full_name}`,
                 reservation_id: reservationId,
-                shift_date: getTodayPanama(), // TIMEZONE FIX
+                shift_date: getTodayInPanama(),
                 created_by: currentUser?.id
             }]);
             if (window.updateCashBalance) await window.updateCashBalance(totalCashRefund, 'subtract');
