@@ -249,10 +249,10 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
 
         if (insertCashError) throw insertCashError;
 
-        // difference > 0 = dinero entró a caja = INGRESO
-        // difference < 0 = dinero salió de caja = EGRESO
-        const transactionType = difference > 0 ? 'income' : 'expense';
-        const direction = difference > 0 ? 'Ingreso' : 'Egreso';
+        // difference > 0 = metiste dinero a la caja = EGRESO (salió de tu efectivo disponible)
+        // difference < 0 = sacaste dinero de la caja = INGRESO (volvió a tu efectivo disponible)
+        const transactionType = difference > 0 ? 'expense' : 'income';
+        const direction = difference > 0 ? 'Depósito a caja' : 'Retiro de caja';
         const description = `Actualización de caja (${direction}): ${adjustmentReason} — anterior $${previousBalance.toFixed(2)}, nuevo $${newAmount.toFixed(2)}`;
 
         const { error: transError } = await window.db
