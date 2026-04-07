@@ -44,24 +44,65 @@
     margin-bottom: 0.25rem;
 }
 
-/* Modal detalle transacción */
-.transaction-detail-row {
+/* NUEVO: Estilos para modal de detalle de transacción */
+.transaction-detail-modal .modal-content {
+    max-width: 400px;
+}
+.transaction-detail-header {
+    padding: 1.25rem;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    text-align: center;
+}
+.transaction-detail-header.income {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+}
+.transaction-detail-header.expense {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+}
+.transaction-amount {
+    font-size: 2.5rem;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    margin-top: 0.5rem;
+}
+.transaction-amount.income {
+    color: #059669;
+}
+.transaction-amount.expense {
+    color: #dc2626;
+}
+.transaction-detail-body {
+    padding: 1.5rem;
+}
+.detail-row-flex {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--gray-100, #f3f4f6);
-    font-size: 0.9rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--gray-100);
 }
-.transaction-detail-row:last-child { border-bottom: none; }
-.transaction-detail-label {
-    color: var(--gray-500, #6b7280);
-    font-weight: 500;
-    min-width: 110px;
+.detail-row-flex:last-child {
+    border-bottom: none;
 }
-.transaction-detail-value {
+.detail-label-muted {
+    color: var(--gray-500);
+    font-size: 0.875rem;
+}
+.detail-value-bold {
     font-weight: 600;
-    text-align: right;
+    color: var(--gray-900);
+    font-size: 0.875rem;
+}
+.auto-cash-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    background: #d1fae5;
+    color: #065f46;
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 0.75rem;
 }
 </style>
 <body>
@@ -129,7 +170,13 @@
             <!-- DASHBOARD -->
             <div id="dashboard-page" class="page">
                 <div class="dashboard-header">
+                    <!-- CORRECCIÓN: Indicador de zona horaria -->
                     <h3 id="current-date">Hoy: --</h3>
+                    <div style="text-align: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.75rem; color: var(--gray-500); background: var(--gray-100); padding: 0.25rem 0.5rem; border-radius: 9999px;">
+                            🌎 UTC-5 (Panamá)
+                        </span>
+                    </div>
                     <div class="occupancy-card">
                         <div class="occupancy-info">
                             <span class="occupancy-percentage" id="occupancy-percent">0%</span>
@@ -240,19 +287,20 @@
                         <label>Nacionalidad</label>
                         <select id="guest-nationality">
                             <option value="">Seleccionar...</option>
-                            <option value="Panamá">Panamá</option>
-                            <option value="Costa Rica">Costa Rica</option>
-                            <option value="Estados Unidos">Estados Unidos</option>
-                            <option value="Canadá">Canadá</option>
-                            <option value="Colombia">Colombia</option>
-                            <option value="Venezuela">Venezuela</option>
-                            <option value="Argentina">Argentina</option>
-                            <option value="Chile">Chile</option>
-                            <option value="España">España</option>
-                            <option value="Alemania">Alemania</option>
-                            <option value="Francia">Francia</option>
-                            <option value="Israel">Israel</option>
-                            <option value="Otro">Otro</option>
+                            <option value="Panamá">🇵🇦 Panamá</option>
+                            <option value="Estados Unidos">🇺🇸 Estados Unidos</option>
+                            <option value="Canadá">🇨🇦 Canadá</option>
+                            <option value="Colombia">🇨🇴 Colombia</option>
+                            <option value="Venezuela">🇻🇪 Venezuela</option>
+                            <option value="Argentina">🇦🇷 Argentina</option>
+                            <option value="Chile">🇨🇱 Chile</option>
+                            <!-- NUEVAS NACIONALIDADES -->
+                            <option value="Costa Rica">🇨🇷 Costa Rica ✨</option>
+                            <option value="Israel">🇮🇱 Israel ✨</option>
+                            <option value="España">🇪🇸 España</option>
+                            <option value="Alemania">🇩🇪 Alemania</option>
+                            <option value="Francia">🇫🇷 Francia</option>
+                            <option value="Otro">🌍 Otro</option>
                         </select>
                     </div>
                     
@@ -297,7 +345,13 @@
                     <div class="form-group">
                         <label>Método de pago *</label>
                         <div class="payment-methods">
-                            <label class="payment-method"><input type="radio" name="payment-method" value="cash" checked onchange="toggleReceiptUpload()"><span>💵 Efectivo</span></label>
+                            <label class="payment-method">
+                                <input type="radio" name="payment-method" value="cash" checked onchange="toggleReceiptUpload()">
+                                <span>💵 Efectivo</span>
+                                <small style="display: block; color: var(--success); font-size: 0.75rem; margin-top: 0.25rem;">
+                                    💰 Se sumará automáticamente a caja
+                                </small>
+                            </label>
                             <label class="payment-method"><input type="radio" name="payment-method" value="yappy" onchange="toggleReceiptUpload()"><span>📱 Yappy</span></label>
                             <label class="payment-method"><input type="radio" name="payment-method" value="card" onchange="toggleReceiptUpload()"><span>💳 Tarjeta</span></label>
                         </div>
@@ -434,6 +488,7 @@
     <!-- MODALES -->
     <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()"></div>
     
+    <!-- MODAL NUEVA TRANSACCIÓN CON NUEVAS CATEGORÍAS -->
     <div id="new-transaction-modal" class="modal hidden">
         <h4>Registrar Movimiento</h4>
         <form id="new-transaction-form">
@@ -446,23 +501,21 @@
             </div>
             <div class="form-group"><label>Monto *</label><div class="input-prefix"><span class="prefix">$</span><input type="number" id="trans-amount" min="0.01" step="0.01" required></div></div>
             <div class="form-group"><label>Categoría *</label>
-               <select id="trans-category" required>
-    <option value="reservation">Reserva</option>
-    <option value="supplies">Suministros</option>
-    <option value="food">Comida</option>
-    <option value="maintenance">Mantenimiento</option>
-    <option value="salary">Sueldos</option>
-
-    <!-- NUEVAS CATEGORÍAS -->
-    <option value="water">Agua</option>
-    <option value="electricity">Luz</option>
-    <option value="garbage">Basura</option>
-    <option value="fuel">Combustible</option>
-    <option value="mobile_fixed">Móvil Fijo</option>
-    <option value="mobile">Móvil</option>
-
-    <option value="other">Otro</option>
-            </select>
+                <select id="trans-category" required>
+                    <option value="reservation">Reserva</option>
+                    <option value="supplies">Suministros</option>
+                    <option value="food">Comida</option>
+                    <option value="maintenance">Mantenimiento</option>
+                    <option value="salary">Sueldos</option>
+                    <!-- NUEVAS CATEGORÍAS DE EGRESOS -->
+                    <option value="water">💧 Agua</option>
+                    <option value="electricity">⚡ Luz</option>
+                    <option value="trash">🗑️ Basura</option>
+                    <option value="fuel">⛽ Combustible</option>
+                    <option value="landline">📞 Móvil Fijo</option>
+                    <option value="mobile">📱 Móvil</option>
+                    <option value="other">Otro</option>
+                </select>
             </div>
             <div class="form-group"><label>Método *</label>
                 <select id="trans-method" required>
@@ -477,11 +530,45 @@
         </form>
     </div>
 
-    <!-- Modal detalle transacción (2.3) -->
-    <div id="transaction-detail-modal" class="modal hidden">
-        <h4>Detalle de Transacción</h4>
-        <div id="transaction-detail-body" style="margin: 1rem 0;"></div>
-        <button type="button" onclick="closeTransactionDetailModal()" class="btn btn-secondary">Cerrar</button>
+    <!-- NUEVO: MODAL DETALLE DE TRANSACCIÓN -->
+    <div id="transaction-detail-modal" class="modal hidden transaction-detail-modal">
+        <div class="modal-content" style="background: white; border-radius: var(--radius-xl); overflow: hidden;">
+            <div id="trans-detail-header" class="transaction-detail-header">
+                <div style="font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8;">
+                    <span id="trans-detail-type-badge"></span>
+                </div>
+                <div id="trans-detail-amount" class="transaction-amount"></div>
+                <div id="trans-detail-category" style="font-size: 1rem; font-weight: 600; margin-top: 0.25rem;"></div>
+            </div>
+            <div class="transaction-detail-body">
+                <div class="detail-row-flex">
+                    <span class="detail-label-muted">Fecha</span>
+                    <span id="trans-detail-date" class="detail-value-bold"></span>
+                </div>
+                <div class="detail-row-flex">
+                    <span class="detail-label-muted">Hora</span>
+                    <span id="trans-detail-time" class="detail-value-bold"></span>
+                </div>
+                <div class="detail-row-flex">
+                    <span class="detail-label-muted">Método de pago</span>
+                    <span id="trans-detail-method" class="detail-value-bold"></span>
+                </div>
+                <div class="detail-row-flex">
+                    <span class="detail-label-muted">Descripción</span>
+                    <span id="trans-detail-description" class="detail-value-bold" style="text-align: right; max-width: 60%;"></span>
+                </div>
+                <div id="trans-detail-auto-cash-container" class="hidden">
+                    <div class="auto-cash-badge">
+                        <span>💵</span>
+                        <span>Ingreso automático a caja</span>
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 0 1.5rem 1.5rem; display: flex; gap: 0.75rem;">
+                <button onclick="closeTransactionDetailModal()" class="btn btn-secondary" style="flex: 1;">Cerrar</button>
+                <button id="trans-detail-print-btn" class="btn btn-primary" style="flex: 1;">🖨️ Imprimir</button>
+            </div>
+        </div>
     </div>
 
     <div id="edit-reservation-modal" class="modal hidden">
