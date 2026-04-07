@@ -53,16 +53,6 @@ window.PANAMA_OFFSET = PANAMA_OFFSET;
 // SISTEMA DE CAJA - FUNCIÓN CENTRALIZADA Y ROBUSTA
 // =====================================================
 
-/**
- * Agrega ingreso en efectivo a la caja física
- * Usado cuando: pagos en efectivo de reservas, ingresos manuales
- * 
- * @param {number} amount - Monto a agregar
- * @param {string} reason - Razón del ingreso
- * @param {string} source - Origen: 'reservation', 'manual', 'adjustment'
- * @param {string} relatedId - ID relacionado (reserva, etc.)
- * @returns {Promise<Object>} - Resultado de la operación
- */
 window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', source = 'manual', relatedId = null) {
     try {
         if (!amount || amount <= 0) {
@@ -75,7 +65,6 @@ window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', so
         const today = getTodayInPanama();
         const now = new Date().toISOString();
 
-        // 1. OBTENER BALANCE ACTUAL
         const { data: currentCash, error: cashError } = await window.db
             .from('cash_register')
             .select('new_balance')
@@ -88,7 +77,6 @@ window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', so
         const previousBalance = currentCash?.new_balance || 0;
         const newBalance = previousBalance + amount;
 
-        // 2. INSERTAR EN CASH_REGISTER (registro físico de caja)
         const { data: cashRecord, error: insertCashError } = await window.db
             .from('cash_register')
             .insert({
@@ -106,7 +94,6 @@ window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', so
 
         if (insertCashError) throw insertCashError;
 
-        // 3. CREAR TRANSACCIÓN PARA AUDITORÍA (finanzas)
         const { error: transError } = await window.db
             .from('transactions')
             .insert({
@@ -123,7 +110,6 @@ window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', so
 
         if (transError) {
             console.warn('Error creando transacción de auditoría:', transError);
-            // No fallamos la operación principal, solo logueamos
         }
 
         return {
@@ -140,15 +126,6 @@ window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', so
     }
 };
 
-/**
- * Resta egreso de la caja física
- * Usado cuando: reembolsos, pagos en efectivo salientes
- * 
- * @param {number} amount - Monto a restar
- * @param {string} reason - Razón del egreso
- * @param {string} source - Origen: 'refund', 'expense', 'adjustment'
- * @returns {Promise<Object>} - Resultado de la operación
- */
 window.subtractCashExpense = async function(amount, reason = 'Egreso en efectivo', source = 'expense') {
     try {
         if (!amount || amount <= 0) {
@@ -161,7 +138,6 @@ window.subtractCashExpense = async function(amount, reason = 'Egreso en efectivo
         const today = getTodayInPanama();
         const now = new Date().toISOString();
 
-        // 1. OBTENER BALANCE ACTUAL
         const { data: currentCash, error: cashError } = await window.db
             .from('cash_register')
             .select('new_balance')
@@ -173,20 +149,18 @@ window.subtractCashExpense = async function(amount, reason = 'Egreso en efectivo
 
         const previousBalance = currentCash?.new_balance || 0;
         
-        // Verificar fondos suficientes
         if (previousBalance < amount) {
-            throw new Error(`Fondos insuficientes en caja. Disponible: $${previousBalance.toFixed(2)}, Requerido: $${amount.toFixed(2)}`);
+            throw new Error(`Fondos insuficientes en caja. Disponible: $${previousBalance.toFixed(2)}`);
         }
 
         const newBalance = previousBalance - amount;
 
-        // 2. INSERTAR EN CASH_REGISTER (registro físico de caja - negativo)
         const { data: cashRecord, error: insertCashError } = await window.db
             .from('cash_register')
             .insert({
                 previous_balance: previousBalance,
                 new_balance: newBalance,
-                difference: -amount, // Negativo para egreso
+                difference: -amount,
                 reason: reason,
                 source: source,
                 created_by: user.id,
@@ -197,7 +171,6 @@ window.subtractCashExpense = async function(amount, reason = 'Egreso en efectivo
 
         if (insertCashError) throw insertCashError;
 
-        // 3. CREAR TRANSACCIÓN PARA AUDITORÍA
         const { error: transError } = await window.db
             .from('transactions')
             .insert({
@@ -230,14 +203,6 @@ window.subtractCashExpense = async function(amount, reason = 'Egreso en efectivo
     }
 };
 
-/**
- * Ajusta el balance de caja manualmente (por admin/dueña)
- * Crea automáticamente una transacción explicativa
- * 
- * @param {number} newAmount - Nuevo monto que debe tener la caja
- * @param {string} adjustmentReason - Razón del ajuste
- * @returns {Promise<Object>} - Resultado de la operación
- */
 window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste manual') {
     try {
         if (isNaN(newAmount) || newAmount < 0) {
@@ -250,7 +215,6 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
         const today = getTodayInPanama();
         const now = new Date().toISOString();
 
-        // 1. OBTENER BALANCE ACTUAL
         const { data: currentCash, error: cashError } = await window.db
             .from('cash_register')
             .select('new_balance')
@@ -263,7 +227,6 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
         const previousBalance = currentCash?.new_balance || 0;
         const difference = newAmount - previousBalance;
 
-        // Si no hay diferencia, no hacer nada
         if (difference === 0) {
             return {
                 success: true,
@@ -273,7 +236,6 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
             };
         }
 
-        // 2. INSERTAR AJUSTE EN CASH_REGISTER
         const { data: cashRecord, error: insertCashError } = await window.db
             .from('cash_register')
             .insert({
@@ -290,11 +252,10 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
 
         if (insertCashError) throw insertCashError;
 
-        // 3. CREAR TRANSACCIÓN EXPLICATIVA DEL AJUSTE
         const isPositiveAdjustment = difference > 0;
         const transactionType = isPositiveAdjustment ? 'income' : 'expense';
         const category = isPositiveAdjustment ? 'cash_adjustment_positive' : 'cash_adjustment_negative';
-        const description = `Ajuste de caja: ${adjustmentReason}. ${isPositiveAdjustment ? 'Sobrante' : 'Faltante'} detectado en conteo físico.`;
+        const description = `Ajuste de caja: ${adjustmentReason}. ${isPositiveAdjustment ? 'Sobrante' : 'Faltante'} detectado.`;
 
         const { error: transError } = await window.db
             .from('transactions')
@@ -306,7 +267,7 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
                 description: description,
                 shift_date: today,
                 related_cash_register_id: cashRecord.id,
-                is_cash_adjustment: true, // Flag especial para identificar ajustes
+                is_cash_adjustment: true,
                 created_by: user.id,
                 created_at: now
             });
@@ -330,10 +291,6 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
     }
 };
 
-/**
- * Obtiene el balance actual de caja
- * @returns {Promise<number>} - Balance actual
- */
 window.getCurrentCashBalance = async function() {
     try {
         const { data, error } = await window.db
@@ -352,9 +309,6 @@ window.getCurrentCashBalance = async function() {
     }
 };
 
-// =====================================================
-// FUNCIÓN LEGACY (para compatibilidad)
-// =====================================================
 window.updateCashBalance = async function(amount, operation) {
     console.warn('updateCashBalance está deprecado, usa addCashIncome o subtractCashExpense');
     
