@@ -64,14 +64,10 @@ async function registerCashIncome() {
     }
     
     try {
-        // Use the centralized addCashIncome which updates cash_register + creates transaction
         await window.addCashIncome(amount, concept, 'manual_entry', null);
         showToast('✅ Ingreso registrado correctamente', 'success');
-        
-        // Clear inputs
         document.getElementById('cash-income-amount').value = '';
         document.getElementById('cash-income-concept').value = '';
-        
         await loadCashBalance();
         await loadCashHistory();
     } catch (error) {
@@ -94,7 +90,6 @@ async function adjustCashBalance() {
     }
     
     try {
-        // Use centralized adjustCashBalance from supabase-config.js
         const result = await window.adjustCashBalance(newAmount, reason);
         if (result.message) {
             showToast(result.message, 'info');
@@ -103,11 +98,8 @@ async function adjustCashBalance() {
             const sign = diff >= 0 ? '+' : '';
             showToast(`✅ Caja ajustada. Diferencia: ${sign}$${diff.toFixed(2)}`, 'success');
         }
-        
-        // Clear inputs
         document.getElementById('cash-adjust-amount').value = '';
         document.getElementById('cash-adjust-reason').value = '';
-        
         await loadCashBalance();
         await loadCashHistory();
     } catch (error) {
@@ -251,15 +243,10 @@ function processTransactions(transactions) {
                 <div style="font-weight: 800; color: #92400e; font-family: var(--font-sans); font-size: 1.125rem; white-space: nowrap;">${formatCurrency(methodTotals.card)}</div>
             </div>
         `;
-        // Make the container horizontally scrollable on mobile
         totalsContainer.style.display = 'flex';
         totalsContainer.style.overflowX = 'auto';
         totalsContainer.style.gap = 'var(--space-3)';
         totalsContainer.style.paddingBottom = 'var(--space-2)';
-        totalsContainer.style.scrollSnapType = 'x mandatory';
-        totalsContainer.querySelectorAll('div').forEach(el => {
-            el.style.scrollSnapAlign = 'start';
-        });
     }
 
     renderPaymentChart(methodTotals);
@@ -454,6 +441,10 @@ function renderTransactions(data, container) {
                 <div style="display: flex; align-items: center; gap: var(--space-2);">
                     ${t.auto_cash ? '<span style="font-size: 0.625rem; background: var(--success-light); color: #065f46; padding: var(--space-1) var(--space-2); border-radius: var(--radius-full); font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.2);">💵 Auto</span>' : ''}
                     <span style="font-size: 1rem;">${methodIcon}</span>
+                    ${isAdmin ? `<button onclick="event.stopPropagation(); deleteTransaction('${t.id}')" style="background: none; border: none; cursor: pointer; padding: var(--space-1) var(--space-2); border-radius: var(--radius-md); color: var(--danger); font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; gap: 4px; transition: background 0.2s;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        Eliminar
+                    </button>` : ''}
                 </div>
             </div>
         `;
@@ -677,4 +668,3 @@ window.showNewTransactionModal = showNewTransactionModal;
 window.exportFinancesToExcel = exportFinancesToExcel;
 window.showTransactionDetail = showTransactionDetail;
 window.closeTransactionDetailModal = closeTransactionDetailModal;
-
