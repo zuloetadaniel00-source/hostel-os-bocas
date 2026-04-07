@@ -64,14 +64,8 @@ async function registerCashIncome() {
     }
     
     try {
-        const { error } = await db.rpc('process_cash_transaction', {
-            p_type: 'income',
-            p_category: 'manual_entry',
-            p_amount: amount,
-            p_description: concept,
-            p_user_id: currentUser.id
-        });
-        if (error) throw error;
+        // Use the centralized addCashIncome which updates cash_register + creates transaction
+        await window.addCashIncome(amount, concept, 'manual_entry', null);
         showToast('✅ Ingreso registrado correctamente', 'success');
         
         // Clear inputs
@@ -79,8 +73,9 @@ async function registerCashIncome() {
         document.getElementById('cash-income-concept').value = '';
         
         await loadCashBalance();
+        await loadCashHistory();
     } catch (error) {
-        showToast(error.message, 'error');
+        showToast(error.message || 'Error al registrar ingreso', 'error');
     }
 }
 
@@ -99,13 +94,15 @@ async function adjustCashBalance() {
     }
     
     try {
-        const { error } = await db.rpc('adjust_cash', {
-            p_new_balance: newAmount,
-            p_reason: reason,
-            p_user_id: currentUser.id
-        });
-        if (error) throw error;
-        showToast('✅ Caja ajustada correctamente', 'success');
+        // Use centralized adjustCashBalance from supabase-config.js
+        const result = await window.adjustCashBalance(newAmount, reason);
+        if (result.message) {
+            showToast(result.message, 'info');
+        } else {
+            const diff = result.difference;
+            const sign = diff >= 0 ? '+' : '';
+            showToast(`✅ Caja ajustada. Diferencia: ${sign}$${diff.toFixed(2)}`, 'success');
+        }
         
         // Clear inputs
         document.getElementById('cash-adjust-amount').value = '';
@@ -114,7 +111,7 @@ async function adjustCashBalance() {
         await loadCashBalance();
         await loadCashHistory();
     } catch (error) {
-        showToast(error.message, 'error');
+        showToast(error.message || 'Error al ajustar caja', 'error');
     }
 }
 
@@ -241,19 +238,28 @@ function processTransactions(transactions) {
     const totalsContainer = document.getElementById('payment-method-totals');
     if (totalsContainer) {
         totalsContainer.innerHTML = `
-            <div style="background: var(--success-light); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid rgba(16, 185, 129, 0.2);">
+            <div style="background: var(--success-light); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid rgba(16, 185, 129, 0.2); min-width: 110px; flex-shrink: 0;">
                 <div style="font-size: 0.75rem; color: #065f46; font-weight: 600; margin-bottom: var(--space-1);">💵 Efectivo</div>
-                <div style="font-weight: 800; color: #065f46; font-family: var(--font-sans); font-size: 1.125rem;">${formatCurrency(methodTotals.cash)}</div>
+                <div style="font-weight: 800; color: #065f46; font-family: var(--font-sans); font-size: 1.125rem; white-space: nowrap;">${formatCurrency(methodTotals.cash)}</div>
             </div>
-            <div style="background: var(--info-light); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid rgba(59, 130, 246, 0.2);">
+            <div style="background: var(--info-light); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid rgba(59, 130, 246, 0.2); min-width: 110px; flex-shrink: 0;">
                 <div style="font-size: 0.75rem; color: #1e40af; font-weight: 600; margin-bottom: var(--space-1);">📱 Yappy</div>
-                <div style="font-weight: 800; color: #1e40af; font-family: var(--font-sans); font-size: 1.125rem;">${formatCurrency(methodTotals.yappy)}</div>
+                <div style="font-weight: 800; color: #1e40af; font-family: var(--font-sans); font-size: 1.125rem; white-space: nowrap;">${formatCurrency(methodTotals.yappy)}</div>
             </div>
-            <div style="background: var(--warning-light); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid rgba(245, 158, 11, 0.2);">
+            <div style="background: var(--warning-light); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid rgba(245, 158, 11, 0.2); min-width: 110px; flex-shrink: 0;">
                 <div style="font-size: 0.75rem; color: #92400e; font-weight: 600; margin-bottom: var(--space-1);">💳 Tarjeta</div>
-                <div style="font-weight: 800; color: #92400e; font-family: var(--font-sans); font-size: 1.125rem;">${formatCurrency(methodTotals.card)}</div>
+                <div style="font-weight: 800; color: #92400e; font-family: var(--font-sans); font-size: 1.125rem; white-space: nowrap;">${formatCurrency(methodTotals.card)}</div>
             </div>
         `;
+        // Make the container horizontally scrollable on mobile
+        totalsContainer.style.display = 'flex';
+        totalsContainer.style.overflowX = 'auto';
+        totalsContainer.style.gap = 'var(--space-3)';
+        totalsContainer.style.paddingBottom = 'var(--space-2)';
+        totalsContainer.style.scrollSnapType = 'x mandatory';
+        totalsContainer.querySelectorAll('div').forEach(el => {
+            el.style.scrollSnapAlign = 'start';
+        });
     }
 
     renderPaymentChart(methodTotals);
