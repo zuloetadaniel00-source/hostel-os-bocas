@@ -308,3 +308,4 @@ window.updateCashBalance = async function(amount, operation) {
         return await window.subtractCashExpense(amount, 'Actualización manual', 'expense');
     }
 };
+
