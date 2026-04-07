@@ -42,7 +42,12 @@ async function handleLogin(e) {
 
     errorDiv.classList.remove('show');
     btn.disabled = true;
-    btn.textContent = 'Ingresando...';
+    btn.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px; animation: spin 1s linear infinite;">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"></circle>
+        </svg>
+        Ingresando...
+    `;
 
     try {
         const { data, error } = await db.auth.signInWithPassword({ email, password });
@@ -52,10 +57,15 @@ async function handleLogin(e) {
         loadUserProfile(data.user).catch(console.error);
 
     } catch (error) {
-        errorDiv.textContent = 'Email o contrasena incorrectos';
+        errorDiv.textContent = 'Email o contraseña incorrectos';
         errorDiv.classList.add('show');
         btn.disabled = false;
-        btn.textContent = 'Ingresar';
+        btn.innerHTML = `
+            <span>Ingresar</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px;">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+        `;
     }
 }
 
