@@ -424,14 +424,23 @@
             </div>
             <div class="form-group"><label>Monto *</label><div class="input-prefix"><span class="prefix">$</span><input type="number" id="trans-amount" min="0.01" step="0.01" required></div></div>
             <div class="form-group"><label>Categoría *</label>
-                <select id="trans-category" required>
-                    <option value="reservation">Reserva</option>
-                    <option value="supplies">Suministros</option>
-                    <option value="food">Comida</option>
-                    <option value="maintenance">Mantenimiento</option>
-                    <option value="salary">Sueldos</option>
-                    <option value="other">Otro</option>
-                </select>
+               <select id="trans-category" required>
+    <option value="reservation">Reserva</option>
+    <option value="supplies">Suministros</option>
+    <option value="food">Comida</option>
+    <option value="maintenance">Mantenimiento</option>
+    <option value="salary">Sueldos</option>
+
+    <!-- NUEVAS CATEGORÍAS -->
+    <option value="water">Agua</option>
+    <option value="electricity">Luz</option>
+    <option value="garbage">Basura</option>
+    <option value="fuel">Combustible</option>
+    <option value="mobile_fixed">Móvil Fijo</option>
+    <option value="mobile">Móvil</option>
+
+    <option value="other">Otro</option>
+            </select>
             </div>
             <div class="form-group"><label>Método *</label>
                 <select id="trans-method" required>
