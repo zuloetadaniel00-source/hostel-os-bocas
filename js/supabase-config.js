@@ -96,7 +96,7 @@ window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', so
             .from('transactions')
             .insert({
                 type: 'income',
-                category: source === 'reservation' ? 'reservation_payment' : 'manual_entry',
+                category: source === 'reservation' ? 'reservation' : 'manual_entry',
                 amount: amount,
                 payment_method: 'cash',
                 description: reason,
@@ -170,7 +170,7 @@ window.subtractCashExpense = async function(amount, reason = 'Egreso en efectivo
             .from('transactions')
             .insert({
                 type: 'expense',
-                category: source === 'refund' ? 'cancellation_refund' : 'cash_expense',
+                category: 'other',
                 amount: amount,
                 payment_method: 'cash',
                 description: reason,
@@ -246,14 +246,13 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
 
         const isPositiveAdjustment = difference > 0;
         const transactionType = isPositiveAdjustment ? 'income' : 'expense';
-        const category = isPositiveAdjustment ? 'cash_adjustment_positive' : 'cash_adjustment_negative';
         const description = `Ajuste de caja: ${adjustmentReason}. ${isPositiveAdjustment ? 'Sobrante' : 'Faltante'} detectado.`;
 
         const { error: transError } = await window.db
             .from('transactions')
             .insert({
                 type: transactionType,
-                category: category,
+                category: 'cash_adjustment',
                 amount: Math.abs(difference),
                 payment_method: 'cash',
                 description: description,
