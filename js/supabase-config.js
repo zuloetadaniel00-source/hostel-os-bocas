@@ -92,21 +92,26 @@ window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', so
 
         if (insertCashError) throw insertCashError;
 
-        const { error: transError } = await window.db
-            .from('transactions')
-            .insert({
-                type: 'income',
-                category: source === 'reservation' ? 'reservation' : 'manual_entry',
-                amount: amount,
-                payment_method: 'cash',
-                description: reason,
-                shift_date: today,
-                created_by: user.id,
-                created_at: now
-            });
+        // For 'reservation' source, the DB trigger create_transaction_from_payment
+        // already creates the transaction automatically when inserting into payments.
+        // Only create transaction manually for other sources (manual_entry, etc).
+        if (source !== 'reservation') {
+            const { error: transError } = await window.db
+                .from('transactions')
+                .insert({
+                    type: 'income',
+                    category: 'manual_entry',
+                    amount: amount,
+                    payment_method: 'cash',
+                    description: reason,
+                    shift_date: today,
+                    created_by: user.id,
+                    created_at: now
+                });
 
-        if (transError) {
-            console.warn('Error creando transacción de auditoría:', transError);
+            if (transError) {
+                console.warn('Error creando transacción de auditoría:', transError);
+            }
         }
 
         return {
@@ -309,3 +314,4 @@ window.updateCashBalance = async function(amount, operation) {
         return await window.subtractCashExpense(amount, 'Actualización manual', 'expense');
     }
 };
+
