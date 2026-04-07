@@ -27,6 +27,10 @@ async function loadCashBalance() {
 
 function animateCurrency(element, start, end, duration) {
     const range = end - start;
+    if (range === 0) {
+        element.textContent = formatCurrency(end);
+        return;
+    }
     const minTimer = 50;
     let stepTime = Math.abs(Math.floor(duration / range));
     stepTime = Math.max(stepTime, minTimer);
@@ -520,10 +524,12 @@ async function showTransactionDetail(transaction) {
     }
     
     const autoCashContainer = document.getElementById('trans-detail-auto-cash-container');
-    if (transaction.auto_cash || (isIncome && method === 'cash' && transaction.category === 'reservation_payment')) {
-        autoCashContainer.classList.remove('hidden');
-    } else {
-        autoCashContainer.classList.add('hidden');
+    if (autoCashContainer) {
+        if (transaction.auto_cash || (isIncome && method === 'cash' && transaction.category === 'reservation_payment')) {
+            autoCashContainer.classList.remove('hidden');
+        } else {
+            autoCashContainer.classList.add('hidden');
+        }
     }
     
     const printBtn = document.getElementById('trans-detail-print-btn');
@@ -589,24 +595,36 @@ async function saveTransaction() {
     
     try {
         const today = getTodayInPanama();
-        const { error } = await db.from('transactions').insert({
-            type,
-            amount,
-            category,
-            payment_method: method,
-            description,
-            created_by: currentUser.id,
-            shift_date: today,
-            created_at: new Date().toISOString()
-        });
-        
-        if (error) throw error;
+
+        // For cash: use centralized functions which handle both cash_register + transaction
+        if (method === 'cash' && type === 'income') {
+            await window.addCashIncome(amount, description, 'manual_entry', null);
+        } else if (method === 'cash' && type === 'expense') {
+            await window.subtractCashExpense(amount, description, 'expense');
+        } else {
+            // Non-cash: just insert transaction record
+            const { error } = await db.from('transactions').insert({
+                type,
+                amount,
+                category,
+                payment_method: method,
+                description,
+                created_by: currentUser.id,
+                shift_date: today,
+                created_at: new Date().toISOString()
+            });
+            if (error) throw error;
+        }
+
         showToast('✅ Movimiento guardado', 'success');
         closeModal();
         document.getElementById('trans-amount').value = '';
         document.getElementById('trans-description').value = '';
         await loadFinanceSummary();
         await loadTransactions();
+        if (document.getElementById('current-cash-balance')) {
+            await loadCashBalance();
+        }
     } catch (error) {
         console.error('Error saving transaction:', error);
         showToast(error.message || 'Error al guardar', 'error');
