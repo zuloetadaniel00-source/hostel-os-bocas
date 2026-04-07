@@ -1,5 +1,5 @@
 // =====================================================
-// APP PRINCIPAL - OPTIMIZADO
+// APP PRINCIPAL - OPTIMIZADO CON ZONA HORARIA PANAMÁ
 // =====================================================
 
 let currentUser = null;
@@ -14,13 +14,6 @@ const esc = (str) => {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
 };
-
-// =====================================================
-// TIMEZONE: Retorna fecha actual en America/Panama (YYYY-MM-DD)
-// =====================================================
-function getTodayPanama() {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
-}
 
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
@@ -96,16 +89,14 @@ function showFinances() {
 
     document.getElementById('page-title').textContent = 'Finanzas';
 
-    // TIMEZONE FIX: usar fecha local de Panamá
-    const today = getTodayPanama();
-    const todayDate = new Date(today + 'T12:00:00');
-    const firstDay = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
-    const firstDayStr = firstDay.toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    // CORRECCIÓN: Usar fecha de Panamá en lugar de UTC
+    const today = getTodayInPanama();
+    const firstDay = new Date().toISOString().slice(0, 8) + '01'; // Primer día del mes actual
 
     const dateFromEl = document.getElementById('finance-date-from');
     const dateToEl = document.getElementById('finance-date-to');
 
-    if (dateFromEl) dateFromEl.value = firstDayStr;
+    if (dateFromEl) dateFromEl.value = firstDay;
     if (dateToEl) dateToEl.value = today;
 
     showPage('finances-page');
@@ -117,23 +108,22 @@ function goBack() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // TIMEZONE FIX: usar fecha local de Panamá en todos los campos de fecha
-    const todayStr = getTodayPanama();
-    const todayDate = new Date(todayStr + 'T12:00:00');
-    const firstDay = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
-    const firstDayStr = firstDay.toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    // CORRECCIÓN: Inicializar fechas con zona horaria de Panamá
+    const today = getTodayInPanama();
+    
+    // Calcular mañana para check-out por defecto
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
     const setValue = (id, value) => {
         const el = document.getElementById(id);
         if (el) el.value = value;
     };
 
-    setValue('check-in-date', todayStr);
-    setValue('check-out-date', todayStr);
-    setValue('reservations-date', todayStr);
-
-    setValue('finance-date-from', firstDayStr);
-    setValue('finance-date-to', todayStr);
+    setValue('check-in-date', today);
+    setValue('check-out-date', tomorrowStr);
+    setValue('reservations-date', today);
 });
 
 function showLogin() {
@@ -161,34 +151,42 @@ function closeEditModal() {
     document.getElementById('modal-overlay')?.classList.add('hidden');
 }
 
+// CORRECCIÓN: Función de formato de fecha actualizada para Panamá
 function formatDate(dateStr) {
     if (!dateStr) return '--';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-PA', {
+    
+    // Si es string de Supabase (UTC), convertir a Panamá primero
+    const date = dateStr.includes('T') ? dateFromUTC(dateStr) : new Date(dateStr);
+    
+    return new Intl.DateTimeFormat('es-PA', {
+        timeZone: 'America/Panama',
         weekday: 'short',
         day: 'numeric',
         month: 'short'
-    });
+    }).format(date);
 }
 
 function formatCurrency(amount) {
     return '$' + parseFloat(amount || 0).toFixed(2);
 }
 
+// CORRECCIÓN: Función de formato datetime actualizada para Panamá
 function formatDateTime(isoString) {
     if (!isoString) return '--';
-    const date = new Date(isoString);
-    return date.toLocaleString('es-PA', {
+    
+    const date = dateFromUTC(isoString);
+    
+    return new Intl.DateTimeFormat('es-PA', {
         timeZone: 'America/Panama',
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
-        minute: '2-digit'
-    });
+        minute: '2-digit',
+        hour12: true
+    }).format(date);
 }
 
 // Exponer funciones globales
-window.getTodayPanama = getTodayPanama;
 window.showDashboard = showDashboard;
 window.showReservations = showReservations;
 window.showNewReservation = showNewReservation;
