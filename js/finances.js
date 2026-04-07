@@ -1,5 +1,5 @@
 // =====================================================
-// FINANZAS / CAJA - COMPLETO
+// FINANZAS / CAJA - COMPLETO CON MEJORAS UX
 // =====================================================
 
 let paymentChart = null;
@@ -92,7 +92,7 @@ async function loadCashHistory() {
         let html = '';
         data.forEach(adj => {
             const fecha = adj.created_at
-                ? new Date(adj.created_at).toLocaleString('es-PA', { timeZone: 'America/Panama', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                ? formatDateTime(adj.created_at)
                 : '--';
             html += '<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--gray-100);font-size:0.85rem;">'
                 + '<span style="color:var(--gray-500);">' + fecha + '</span>'
@@ -127,17 +127,20 @@ async function loadFinanceSummary() {
         const dateFrom = document.getElementById('finance-date-from')?.value;
         const dateTo   = document.getElementById('finance-date-to')?.value;
 
-        // CORRECCIÓN: usar shift_date (fecha local sin timezone) para evitar desfase UTC
+        // CORRECCIÓN: Usar shift_date con fallback a created_at
         let query = db.from('transactions').select('*');
+        
+        // Si tenemos fechas, filtrar por shift_date (fecha local de Panamá)
         if (dateFrom) query = query.gte('shift_date', dateFrom);
         if (dateTo)   query = query.lte('shift_date', dateTo);
+        
         query = query.order('created_at', { ascending: false });
 
         const { data, error } = await query;
 
         if (error) {
-            // Fallback con created_at si shift_date no existe como columna
-            console.warn('Fallback a created_at:', error.message);
+            console.warn('Error con shift_date, usando fallback:', error.message);
+            // Fallback con created_at si hay problemas
             let q2 = db.from('transactions').select('*');
             if (dateFrom) q2 = q2.gte('created_at', dateFrom + 'T00:00:00+00:00');
             if (dateTo)   q2 = q2.lte('created_at', dateTo   + 'T23:59:59+00:00');
@@ -265,8 +268,12 @@ function buildChart(canvas, methodTotals) {
 }
 
 // =============================
-// TRANSACCIONES
+// TRANSACCIONES - CON CATEGORÍA PRIMERO Y CLICK PARA DETALLES
 // =============================
+
+// Variable para almacenar transacciones actuales
+let currentTransactions = [];
+
 async function loadTransactions() {
     const container = document.getElementById('transactions-list');
     if (!container) return;
@@ -276,7 +283,6 @@ async function loadTransactions() {
         const dateFrom = document.getElementById('finance-date-from')?.value;
         const dateTo   = document.getElementById('finance-date-to')?.value;
 
-        // CORRECCIÓN: mismo filtro que el resumen — shift_date
         let query = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(100);
         if (dateFrom) query = query.gte('shift_date', dateFrom);
         if (dateTo)   query = query.lte('shift_date', dateTo);
@@ -290,11 +296,13 @@ async function loadTransactions() {
             if (dateTo)   q2 = q2.lte('created_at', dateTo   + 'T23:59:59+00:00');
             const { data: d2, error: e2 } = await q2;
             if (e2) throw e2;
-            renderTransactions(d2 || [], container);
+            currentTransactions = d2 || [];
+            renderTransactions(currentTransactions, container);
             return;
         }
 
-        renderTransactions(data || [], container);
+        currentTransactions = data || [];
+        renderTransactions(currentTransactions, container);
 
     } catch (error) {
         console.error('Error loading transactions:', error);
@@ -302,28 +310,23 @@ async function loadTransactions() {
     }
 }
 
-// =============================
-// ETIQUETAS DE CATEGORÍA
-// =============================
-function getCategoryLabel(category) {
-    const labels = {
-        reservation: 'Reserva',
-        supplies: 'Suministros',
-        food: 'Comida',
-        maintenance: 'Mantenimiento',
-        salary: 'Sueldos',
-        water: 'Agua',
-        electricity: 'Luz',
-        trash: 'Basura',
-        fuel: 'Combustible',
-        mobile_fixed: 'Móvil Fijo',
-        mobile: 'Móvil',
-        manual_entry: 'Entrada manual',
-        cancellation_refund: 'Reembolso',
-        other: 'Otro'
-    };
-    return labels[category] || category || '--';
-}
+// Mapeo de categorías a nombres amigables e iconos
+const categoryMap = {
+    'reservation': { name: 'Reserva', icon: '🏨', color: '#0d9488' },
+    'supplies': { name: 'Suministros', icon: '📦', color: '#6b7280' },
+    'food': { name: 'Comida', icon: '🍽️', color: '#f43f5e' },
+    'maintenance': { name: 'Mantenimiento', icon: '🔧', color: '#f59e0b' },
+    'salary': { name: 'Sueldos', icon: '💼', color: '#3b82f6' },
+    'water': { name: 'Agua', icon: '💧', color: '#06b6d4' },
+    'electricity': { name: 'Luz', icon: '⚡', color: '#eab308' },
+    'trash': { name: 'Basura', icon: '🗑️', color: '#78716c' },
+    'fuel': { name: 'Combustible', icon: '⛽', color: '#f97316' },
+    'landline': { name: 'Móvil Fijo', icon: '📞', color: '#6366f1' },
+    'mobile': { name: 'Móvil', icon: '📱', color: '#8b5cf6' },
+    'other': { name: 'Otro', icon: '📋', color: '#9ca3af' },
+    'manual_entry': { name: 'Ingreso Manual', icon: '💵', color: '#10b981' },
+    'cancellation_refund': { name: 'Reembolso', icon: '↩️', color: '#ef4444' }
+};
 
 function renderTransactions(data, container) {
     if (!data || data.length === 0) {
@@ -332,95 +335,153 @@ function renderTransactions(data, container) {
     }
 
     const isAdmin = currentProfile?.role === 'admin';
-    let html = '';
-    data.forEach(t => {
+    
+    container.innerHTML = '';
+    data.forEach((t, index) => {
         const isIncome   = t.type === 'income';
         const amount     = parseFloat(t.amount || 0);
-        // TIMEZONE FIX: mostrar hora en Panama
-        const fecha      = t.created_at
-            ? new Date(t.created_at).toLocaleString('es-PA', { timeZone: 'America/Panama', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-            : '--';
+        
+        // CORRECCIÓN: Categoría primero, destacada
+        const categoryInfo = categoryMap[t.category] || { name: t.category || 'Otro', icon: '📋', color: '#9ca3af' };
         const method     = (t.payment_method || t.method || '').toLowerCase();
         const methodIcon = method === 'yappy' ? '📱' : method === 'card' ? '💳' : '💵';
-        const color      = isIncome ? '#22c55e' : '#ef4444';
+        const color      = isIncome ? '#059669' : '#dc2626';
         const sign       = isIncome ? '+' : '-';
-        // CAMBIO 2.2: mostrar categoría primero
-        const categoryLabel = getCategoryLabel(t.category);
-
-        // CAMBIO 2.3: fila clickeable para abrir modal de detalle
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--gray-100);cursor:pointer;" onclick="showTransactionDetail(' + JSON.stringify(t).replace(/'/g, '&#039;') + ')">'
-            + '<div style="flex:1;">'
-                + '<div style="font-size:0.75rem;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.03em;">' + esc(categoryLabel) + '</div>'
-                + '<div style="font-size:0.875rem;font-weight:500;">' + esc(t.description || '') + '</div>'
-                + '<div style="font-size:0.75rem;color:var(--gray-400);">' + fecha + ' ' + methodIcon + '</div>'
-            + '</div>'
-            + '<div style="display:flex;align-items:center;gap:0.75rem;">'
-                + '<span style="font-weight:700;color:' + color + ';">' + sign + '$' + amount.toFixed(2) + '</span>'
-                + (isAdmin ? '<button onclick="event.stopPropagation();deleteTransaction(\'' + t.id + '\')" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0.25rem;" title="Eliminar">🗑️</button>' : '')
-            + '</div>'
-            + '</div>';
+        
+        // Crear elemento de transacción clickeable
+        const div = document.createElement('div');
+        div.className = 'transaction-item';
+        div.style.cssText = `
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #e5e7eb;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        `;
+        div.onmouseenter = () => {
+            div.style.transform = 'translateY(-2px)';
+            div.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        };
+        div.onmouseleave = () => {
+            div.style.transform = 'translateY(0)';
+            div.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+        };
+        div.onclick = () => showTransactionDetail(t);
+        
+        div.innerHTML = `
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 1.25rem;">${categoryInfo.icon}</span>
+                    <span style="font-weight: 700; color: ${categoryInfo.color}; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.02em;">
+                        ${categoryInfo.name}
+                    </span>
+                </div>
+                <span style="font-weight: 700; color: ${color}; font-size: 1.125rem; font-family: 'DM Mono', monospace;">
+                    ${sign}$${amount.toFixed(2)}
+                </span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.5rem; border-top: 1px solid #f3f4f6;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #6b7280;">
+                    <span style="display: flex; align-items: center; gap: 0.25rem;">
+                        ${isIncome ? '🟢' : '🔴'} ${isIncome ? 'Ingreso' : 'Egreso'}
+                    </span>
+                    <span>•</span>
+                    <span>${formatDateTime(t.created_at)}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    ${t.auto_cash ? '<span style="font-size: 0.625rem; background: #d1fae5; color: #065f46; padding: 0.125rem 0.375rem; border-radius: 9999px; font-weight: 600;">💵 Auto</span>' : ''}
+                    <span style="font-size: 0.875rem;">${methodIcon}</span>
+                </div>
+            </div>
+            ${isAdmin ? `
+                <button onclick="event.stopPropagation(); deleteTransaction('${t.id}')" 
+                    style="position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: none; cursor: pointer; font-size: 1rem; padding: 0.25rem; opacity: 0; transition: opacity 0.2s;"
+                    onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'"
+                    title="Eliminar">🗑️</button>
+            ` : ''}
+        `;
+        
+        // Posicionamiento relativo para el botón de eliminar
+        div.style.position = 'relative';
+        
+        container.appendChild(div);
     });
-
-    container.innerHTML = html;
 }
 
 // =============================
-// MODAL DETALLE DE TRANSACCIÓN (CAMBIO 2.3)
+// NUEVO: MOSTRAR DETALLE DE TRANSACCIÓN EN MODAL
 // =============================
-function showTransactionDetail(t) {
-    const isIncome = t.type === 'income';
-    const amount   = parseFloat(t.amount || 0);
-    const fecha    = t.created_at
-        ? new Date(t.created_at).toLocaleString('es-PA', { timeZone: 'America/Panama', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : '--';
-    const method   = (t.payment_method || t.method || '').toLowerCase();
-    const methodLabel = method === 'yappy' ? '📱 Yappy' : method === 'card' ? '💳 Tarjeta' : '💵 Efectivo';
-    const color    = isIncome ? '#22c55e' : '#ef4444';
-    const typeLabel = isIncome ? 'Ingreso' : 'Egreso';
-
-    // Reutilizar modal-overlay existente con contenido dinámico
-    const overlay = document.getElementById('modal-overlay');
-    if (!overlay) return;
-
-    // Crear modal dinámico si no existe
-    let detailModal = document.getElementById('transaction-detail-modal');
-    if (!detailModal) {
-        detailModal = document.createElement('div');
-        detailModal.id = 'transaction-detail-modal';
-        detailModal.className = 'modal';
-        document.body.appendChild(detailModal);
+function showTransactionDetail(transaction) {
+    const modal = document.getElementById('transaction-detail-modal');
+    if (!modal) return;
+    
+    const isIncome = transaction.type === 'income';
+    const categoryInfo = categoryMap[transaction.category] || { name: transaction.category || 'Otro', icon: '📋', color: '#9ca3af' };
+    const amount = parseFloat(transaction.amount || 0);
+    
+    // Header
+    const header = document.getElementById('trans-detail-header');
+    header.className = `transaction-detail-header ${isIncome ? 'income' : 'expense'}`;
+    
+    // Tipo badge
+    const typeBadge = document.getElementById('trans-detail-type-badge');
+    typeBadge.textContent = isIncome ? '🟢 INGRESO' : '🔴 EGRESO';
+    typeBadge.style.color = isIncome ? '#059669' : '#dc2626';
+    
+    // Monto
+    const amountEl = document.getElementById('trans-detail-amount');
+    amountEl.textContent = (isIncome ? '+' : '-') + '$' + amount.toFixed(2);
+    amountEl.className = `transaction-amount ${isIncome ? 'income' : 'expense'}`;
+    
+    // Categoría
+    const categoryEl = document.getElementById('trans-detail-category');
+    categoryEl.innerHTML = `<span style="font-size: 1.5rem; margin-right: 0.5rem;">${categoryInfo.icon}</span>${categoryInfo.name}`;
+    categoryEl.style.color = categoryInfo.color;
+    
+    // Fecha y hora (convertir de UTC a Panamá)
+    const dateObj = dateFromUTC(transaction.created_at);
+    document.getElementById('trans-detail-date').textContent = formatDateToPanama(dateObj);
+    document.getElementById('trans-detail-time').textContent = new Intl.DateTimeFormat('es-PA', {
+        timeZone: 'America/Panama',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    }).format(dateObj) + ' (UTC-5)';
+    
+    // Método de pago
+    const method = (transaction.payment_method || transaction.method || 'cash').toLowerCase();
+    const methodText = method === 'yappy' ? '📱 Yappy' : method === 'card' ? '💳 Tarjeta de crédito' : '💵 Efectivo';
+    document.getElementById('trans-detail-method').textContent = methodText;
+    
+    // Descripción
+    document.getElementById('trans-detail-description').textContent = transaction.description || 'Sin descripción';
+    
+    // Badge de auto-caja
+    const autoCashContainer = document.getElementById('trans-detail-auto-cash-container');
+    if (transaction.auto_cash || (isIncome && method === 'cash' && transaction.category === 'reservation_payment')) {
+        autoCashContainer.classList.remove('hidden');
+    } else {
+        autoCashContainer.classList.add('hidden');
     }
+    
+    // Configurar botón de imprimir
+    const printBtn = document.getElementById('trans-detail-print-btn');
+    printBtn.onclick = () => {
+        window.print();
+    };
+    
+    // Mostrar modal
+    document.getElementById('modal-overlay')?.classList.remove('hidden');
+    modal.classList.remove('hidden');
+}
 
-    detailModal.innerHTML = `
-        <h4 style="margin-bottom:1rem;">Detalle de Movimiento</h4>
-        <div style="display:flex;flex-direction:column;gap:0.75rem;">
-            <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">
-                <span style="color:var(--gray-500);font-size:0.875rem;">Tipo</span>
-                <span style="font-weight:600;color:${color};">${esc(typeLabel)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">
-                <span style="color:var(--gray-500);font-size:0.875rem;">Categoría</span>
-                <span style="font-weight:600;">${esc(getCategoryLabel(t.category))}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">
-                <span style="color:var(--gray-500);font-size:0.875rem;">Monto</span>
-                <span style="font-weight:700;font-size:1.1rem;color:${color};">${isIncome ? '+' : '-'}$${amount.toFixed(2)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">
-                <span style="color:var(--gray-500);font-size:0.875rem;">Fecha y hora</span>
-                <span style="font-weight:500;">${esc(fecha)}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">
-                <span style="color:var(--gray-500);font-size:0.875rem;">Método de pago</span>
-                <span style="font-weight:500;">${esc(methodLabel)}</span>
-            </div>
-            ${t.description ? `<div style="padding:0.5rem 0;"><span style="color:var(--gray-500);font-size:0.875rem;display:block;margin-bottom:0.25rem;">Descripción</span><span style="font-size:0.875rem;">${esc(t.description)}</span></div>` : ''}
-        </div>
-        <button onclick="closeModal()" class="btn btn-secondary" style="margin-top:1rem;width:100%;">Cerrar</button>
-    `;
-
-    detailModal.classList.remove('hidden');
-    overlay.classList.remove('hidden');
+function closeTransactionDetailModal() {
+    const modal = document.getElementById('transaction-detail-modal');
+    if (modal) modal.classList.add('hidden');
+    document.getElementById('modal-overlay')?.classList.add('hidden');
 }
 
 // =============================
@@ -469,8 +530,8 @@ async function saveTransaction() {
         return;
     }
     try {
-        // TIMEZONE FIX: usar fecha local de Panamá
-        const today = getTodayPanama();
+        // CORRECCIÓN: Usar fecha de Panamá
+        const today = getTodayInPanama();
         const { error } = await db.from('transactions').insert({
             type,
             amount,
@@ -529,11 +590,11 @@ async function exportFinancesToExcel() {
 
         const rows = (data || []).map(t => ({
             'Fecha': t.created_at
-                ? new Date(t.created_at).toLocaleString('es-PA', { timeZone: 'America/Panama', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                ? formatDateTime(t.created_at)
                 : '--',
             'Descripción': t.description || t.category || '',
             'Tipo': t.type === 'income' ? 'Ingreso' : 'Egreso',
-            'Categoría': getCategoryLabel(t.category),
+            'Categoría': (categoryMap[t.category]?.name || t.category || ''),
             'Método de pago': t.payment_method || t.method || '',
             'Monto': parseFloat(t.amount || 0)
         }));
@@ -566,3 +627,4 @@ window.deleteTransaction       = deleteTransaction;
 window.showNewTransactionModal = showNewTransactionModal;
 window.exportFinancesToExcel   = exportFinancesToExcel;
 window.showTransactionDetail   = showTransactionDetail;
+window.closeTransactionDetailModal = closeTransactionDetailModal;
