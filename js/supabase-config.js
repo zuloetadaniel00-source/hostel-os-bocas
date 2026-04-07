@@ -85,10 +85,7 @@ window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', so
                 new_balance: newBalance,
                 difference: amount,
                 reason: reason,
-                source: source,
-                related_id: relatedId,
-                created_by: user.id,
-                created_at: now
+                adjusted_by: user.id
             })
             .select()
             .single();
@@ -104,7 +101,6 @@ window.addCashIncome = async function(amount, reason = 'Ingreso en efectivo', so
                 payment_method: 'cash',
                 description: reason,
                 shift_date: today,
-                related_cash_register_id: cashRecord.id,
                 created_by: user.id,
                 created_at: now
             });
@@ -163,9 +159,7 @@ window.subtractCashExpense = async function(amount, reason = 'Egreso en efectivo
                 new_balance: newBalance,
                 difference: -amount,
                 reason: reason,
-                source: source,
-                created_by: user.id,
-                created_at: now
+                adjusted_by: user.id
             })
             .select()
             .single();
@@ -181,7 +175,6 @@ window.subtractCashExpense = async function(amount, reason = 'Egreso en efectivo
                 payment_method: 'cash',
                 description: reason,
                 shift_date: today,
-                related_cash_register_id: cashRecord.id,
                 created_by: user.id,
                 created_at: now
             });
@@ -244,9 +237,7 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
                 new_balance: newAmount,
                 difference: difference,
                 reason: adjustmentReason,
-                source: 'admin_adjustment',
-                created_by: user.id,
-                created_at: now
+                adjusted_by: user.id
             })
             .select()
             .single();
@@ -267,8 +258,6 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
                 payment_method: 'cash',
                 description: description,
                 shift_date: today,
-                related_cash_register_id: cashRecord.id,
-                is_cash_adjustment: true,
                 created_by: user.id,
                 created_at: now
             });
