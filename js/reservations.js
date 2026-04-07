@@ -82,9 +82,10 @@ function resetReservationForm() {
     
     // Reset dates
     const today = getTodayInPanama();
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    // Get tomorrow in Panama timezone
+    const todayPanama = new Date(getTodayInPanama() + 'T00:00:00');
+    todayPanama.setDate(todayPanama.getDate() + 1);
+    const tomorrowStr = todayPanama.toISOString().split('T')[0];
     
     const checkInEl = document.getElementById('check-in-date');
     const checkOutEl = document.getElementById('check-out-date');
