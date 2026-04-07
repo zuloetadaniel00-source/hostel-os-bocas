@@ -43,26 +43,6 @@
     align-items: center;
     margin-bottom: 0.25rem;
 }
-
-/* Modal detalle transacción */
-.transaction-detail-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--gray-100, #f3f4f6);
-    font-size: 0.9rem;
-}
-.transaction-detail-row:last-child { border-bottom: none; }
-.transaction-detail-label {
-    color: var(--gray-500, #6b7280);
-    font-weight: 500;
-    min-width: 110px;
-}
-.transaction-detail-value {
-    font-weight: 600;
-    text-align: right;
-}
 </style>
 <body>
     <!-- LOGIN SCREEN -->
@@ -241,7 +221,7 @@
                         <select id="guest-nationality">
                             <option value="">Seleccionar...</option>
                             <option value="Panamá">Panamá</option>
-                            <option value="Costa Rica">Costa Rica</option>
+                            <option value="Costa Rica">Costa Rica</option><!-- NUEVO -->
                             <option value="Estados Unidos">Estados Unidos</option>
                             <option value="Canadá">Canadá</option>
                             <option value="Colombia">Colombia</option>
@@ -251,7 +231,7 @@
                             <option value="España">España</option>
                             <option value="Alemania">Alemania</option>
                             <option value="Francia">Francia</option>
-                            <option value="Israel">Israel</option>
+                            <option value="Israel">Israel</option><!-- NUEVO -->
                             <option value="Otro">Otro</option>
                         </select>
                     </div>
@@ -446,23 +426,21 @@
             </div>
             <div class="form-group"><label>Monto *</label><div class="input-prefix"><span class="prefix">$</span><input type="number" id="trans-amount" min="0.01" step="0.01" required></div></div>
             <div class="form-group"><label>Categoría *</label>
-               <select id="trans-category" required>
-    <option value="reservation">Reserva</option>
-    <option value="supplies">Suministros</option>
-    <option value="food">Comida</option>
-    <option value="maintenance">Mantenimiento</option>
-    <option value="salary">Sueldos</option>
-
-    <!-- NUEVAS CATEGORÍAS -->
-    <option value="water">Agua</option>
-    <option value="electricity">Luz</option>
-    <option value="garbage">Basura</option>
-    <option value="fuel">Combustible</option>
-    <option value="mobile_fixed">Móvil Fijo</option>
-    <option value="mobile">Móvil</option>
-
-    <option value="other">Otro</option>
-            </select>
+                <select id="trans-category" required>
+                    <option value="reservation">Reserva</option>
+                    <option value="supplies">Suministros</option>
+                    <option value="food">Comida</option>
+                    <option value="maintenance">Mantenimiento</option>
+                    <option value="salary">Sueldos</option>
+                    <!-- NUEVAS CATEGORÍAS DE EGRESOS -->
+                    <option value="water">Agua</option>
+                    <option value="electricity">Luz</option>
+                    <option value="trash">Basura</option>
+                    <option value="fuel">Combustible</option>
+                    <option value="mobile_fixed">Móvil Fijo</option>
+                    <option value="mobile">Móvil</option>
+                    <option value="other">Otro</option>
+                </select>
             </div>
             <div class="form-group"><label>Método *</label>
                 <select id="trans-method" required>
@@ -475,13 +453,6 @@
             <button type="submit" class="btn btn-primary">Guardar</button>
             <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancelar</button>
         </form>
-    </div>
-
-    <!-- Modal detalle transacción (2.3) -->
-    <div id="transaction-detail-modal" class="modal hidden">
-        <h4>Detalle de Transacción</h4>
-        <div id="transaction-detail-body" style="margin: 1rem 0;"></div>
-        <button type="button" onclick="closeTransactionDetailModal()" class="btn btn-secondary">Cerrar</button>
     </div>
 
     <div id="edit-reservation-modal" class="modal hidden">
