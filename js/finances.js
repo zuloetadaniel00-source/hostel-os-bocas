@@ -1,12 +1,9 @@
 // =====================================================
-// FINANZAS / CAJA - COMPLETO CON MEJORAS UX
+// FINANZAS / CAJA - COMPLETO CON MEJORAS UX PREMIUM
 // =====================================================
 
 let paymentChart = null;
 
-// =============================
-// CASH BALANCE
-// =============================
 async function loadCashBalance() {
     try {
         const { data, error } = await db
@@ -18,63 +15,109 @@ async function loadCashBalance() {
         if (error) throw error;
         const balance = data?.new_balance || 0;
         const el = document.getElementById('current-cash-balance');
-        if (el) el.textContent = formatCurrency(balance);
+        if (el) {
+            // Animate the balance
+            const start = parseFloat(el.textContent.replace(/[^0-9.-]+/g,"")) || 0;
+            animateCurrency(el, start, balance, 1000);
+        }
     } catch (error) {
         console.error('Error loading cash:', error);
     }
 }
 
-// =============================
-// INGRESO EN CAJA
-// =============================
+function animateCurrency(element, start, end, duration) {
+    const range = end - start;
+    const minTimer = 50;
+    let stepTime = Math.abs(Math.floor(duration / range));
+    stepTime = Math.max(stepTime, minTimer);
+    
+    let startTime = new Date().getTime();
+    let endTime = startTime + duration;
+    let timer;
+    
+    function run() {
+        let now = new Date().getTime();
+        let remaining = Math.max((endTime - now) / duration, 0);
+        let value = end - (remaining * range);
+        element.textContent = formatCurrency(value);
+        if (value == end) {
+            clearInterval(timer);
+        }
+    }
+    
+    timer = setInterval(run, stepTime);
+    run();
+}
+
 async function registerCashIncome() {
     const amount = parseFloat(document.getElementById('cash-income-amount')?.value);
+    const concept = document.getElementById('cash-income-concept')?.value?.trim();
+    
     if (!amount || amount <= 0) {
         showToast('Monto inválido', 'error');
         return;
     }
+    
+    if (!concept) {
+        showToast('Ingresa un concepto', 'error');
+        return;
+    }
+    
     try {
         const { error } = await db.rpc('process_cash_transaction', {
             p_type: 'income',
             p_category: 'manual_entry',
             p_amount: amount,
-            p_description: 'Ingreso manual',
+            p_description: concept,
             p_user_id: currentUser.id
         });
         if (error) throw error;
-        showToast('Ingreso registrado', 'success');
+        showToast('✅ Ingreso registrado correctamente', 'success');
+        
+        // Clear inputs
+        document.getElementById('cash-income-amount').value = '';
+        document.getElementById('cash-income-concept').value = '';
+        
         await loadCashBalance();
     } catch (error) {
         showToast(error.message, 'error');
     }
 }
 
-// =============================
-// AJUSTE DE CAJA
-// =============================
 async function adjustCashBalance() {
     const newAmount = parseFloat(document.getElementById('cash-adjust-amount')?.value);
+    const reason = document.getElementById('cash-adjust-reason')?.value?.trim();
+    
     if (isNaN(newAmount) || newAmount < 0) {
         showToast('Monto inválido', 'error');
         return;
     }
+    
+    if (!reason) {
+        showToast('Ingresa una razón para el ajuste', 'error');
+        return;
+    }
+    
     try {
         const { error } = await db.rpc('adjust_cash', {
             p_new_balance: newAmount,
-            p_reason: 'Ajuste manual',
+            p_reason: reason,
             p_user_id: currentUser.id
         });
         if (error) throw error;
-        showToast('Caja ajustada', 'success');
+        showToast('✅ Caja ajustada correctamente', 'success');
+        
+        // Clear inputs
+        document.getElementById('cash-adjust-amount').value = '';
+        document.getElementById('cash-adjust-reason').value = '';
+        
         await loadCashBalance();
+        await loadCashHistory();
     } catch (error) {
         showToast(error.message, 'error');
     }
 }
 
-// =============================
-// HISTORIAL DE CAJA
-// =============================
 async function loadCashHistory() {
     try {
         const { data, error } = await db
@@ -86,18 +129,25 @@ async function loadCashHistory() {
         const container = document.getElementById('adjust-history-list');
         if (!container) return;
         if (!data || data.length === 0) {
-            container.innerHTML = '<p style="color: var(--gray-500); font-size: 0.875rem;">Sin movimientos</p>';
+            container.innerHTML = '<p style="color: var(--gray-500); font-size: 0.875rem; text-align: center; padding: var(--space-4);">Sin movimientos recientes</p>';
             return;
         }
+        
         let html = '';
-        data.forEach(adj => {
-            const fecha = adj.created_at
-                ? formatDateTime(adj.created_at)
-                : '--';
-            html += '<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--gray-100);font-size:0.85rem;">'
-                + '<span style="color:var(--gray-500);">' + fecha + '</span>'
-                + '<span style="font-weight:600;">$' + Number(adj.new_balance || 0).toFixed(2) + '</span>'
-                + '</div>';
+        data.forEach((adj, index) => {
+            const fecha = adj.created_at ? formatDateTime(adj.created_at) : '--';
+            const isPositive = (adj.difference || 0) >= 0;
+            html += `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--gray-100); font-size: 0.875rem; animation-delay: ${index * 0.05}s;">
+                    <div>
+                        <div style="color: var(--gray-600); font-size: 0.75rem; margin-bottom: 2px;">${fecha}</div>
+                        <div style="color: var(--gray-800); font-weight: 500;">${esc(adj.reason || 'Ajuste')}</div>
+                    </div>
+                    <div style="font-weight: 700; color: ${isPositive ? 'var(--success)' : 'var(--danger)'}; font-family: var(--font-sans);">
+                        ${isPositive ? '+' : ''}$${Number(adj.difference || 0).toFixed(2)}
+                    </div>
+                </div>
+            `;
         });
         container.innerHTML = html;
     } catch (error) {
@@ -105,9 +155,6 @@ async function loadCashHistory() {
     }
 }
 
-// =============================
-// CARGAR FINANZAS COMPLETO
-// =============================
 async function loadFinances() {
     try {
         await loadCashBalance();
@@ -119,18 +166,13 @@ async function loadFinances() {
     }
 }
 
-// =============================
-// RESUMEN: INGRESOS / EGRESOS / BALANCE + GRÁFICO
-// =============================
 async function loadFinanceSummary() {
     try {
         const dateFrom = document.getElementById('finance-date-from')?.value;
         const dateTo   = document.getElementById('finance-date-to')?.value;
 
-        // CORRECCIÓN: Usar shift_date con fallback a created_at
         let query = db.from('transactions').select('*');
         
-        // Si tenemos fechas, filtrar por shift_date (fecha local de Panamá)
         if (dateFrom) query = query.gte('shift_date', dateFrom);
         if (dateTo)   query = query.lte('shift_date', dateTo);
         
@@ -140,7 +182,6 @@ async function loadFinanceSummary() {
 
         if (error) {
             console.warn('Error con shift_date, usando fallback:', error.message);
-            // Fallback con created_at si hay problemas
             let q2 = db.from('transactions').select('*');
             if (dateFrom) q2 = q2.gte('created_at', dateFrom + 'T00:00:00+00:00');
             if (dateTo)   q2 = q2.lte('created_at', dateTo   + 'T23:59:59+00:00');
@@ -182,40 +223,42 @@ function processTransactions(transactions) {
 
     const setEl = (id, val) => {
         const el = document.getElementById(id);
-        if (el) el.textContent = formatCurrency(val);
+        if (el) {
+            const current = parseFloat(el.textContent.replace(/[^0-9.-]+/g,"")) || 0;
+            animateCurrency(el, current, val, 800);
+        }
     };
+    
     setEl('total-income',  totalIncome);
     setEl('total-expense', totalExpense);
     setEl('total-balance', balance);
 
     const balanceEl = document.getElementById('total-balance');
     if (balanceEl) {
-        balanceEl.style.color = balance >= 0 ? 'var(--success)' : '#ef4444';
+        balanceEl.style.color = balance >= 0 ? 'var(--success)' : 'var(--danger)';
     }
 
     const totalsContainer = document.getElementById('payment-method-totals');
     if (totalsContainer) {
-        totalsContainer.innerHTML =
-            '<div style="background:var(--gray-50);border-radius:8px;padding:0.5rem;">' +
-                '<div style="font-size:0.75rem;color:var(--gray-500);">💵 Efectivo</div>' +
-                '<div style="font-weight:700;">$' + methodTotals.cash.toFixed(2) + '</div>' +
-            '</div>' +
-            '<div style="background:var(--gray-50);border-radius:8px;padding:0.5rem;">' +
-                '<div style="font-size:0.75rem;color:var(--gray-500);">📱 Yappy</div>' +
-                '<div style="font-weight:700;">$' + methodTotals.yappy.toFixed(2) + '</div>' +
-            '</div>' +
-            '<div style="background:var(--gray-50);border-radius:8px;padding:0.5rem;">' +
-                '<div style="font-size:0.75rem;color:var(--gray-500);">💳 Tarjeta</div>' +
-                '<div style="font-weight:700;">$' + methodTotals.card.toFixed(2) + '</div>' +
-            '</div>';
+        totalsContainer.innerHTML = `
+            <div style="background: var(--success-light); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid rgba(16, 185, 129, 0.2);">
+                <div style="font-size: 0.75rem; color: #065f46; font-weight: 600; margin-bottom: var(--space-1);">💵 Efectivo</div>
+                <div style="font-weight: 800; color: #065f46; font-family: var(--font-sans); font-size: 1.125rem;">${formatCurrency(methodTotals.cash)}</div>
+            </div>
+            <div style="background: var(--info-light); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid rgba(59, 130, 246, 0.2);">
+                <div style="font-size: 0.75rem; color: #1e40af; font-weight: 600; margin-bottom: var(--space-1);">📱 Yappy</div>
+                <div style="font-weight: 800; color: #1e40af; font-family: var(--font-sans); font-size: 1.125rem;">${formatCurrency(methodTotals.yappy)}</div>
+            </div>
+            <div style="background: var(--warning-light); border-radius: var(--radius-lg); padding: var(--space-4); border: 1px solid rgba(245, 158, 11, 0.2);">
+                <div style="font-size: 0.75rem; color: #92400e; font-weight: 600; margin-bottom: var(--space-1);">💳 Tarjeta</div>
+                <div style="font-weight: 800; color: #92400e; font-family: var(--font-sans); font-size: 1.125rem;">${formatCurrency(methodTotals.card)}</div>
+            </div>
+        `;
     }
 
     renderPaymentChart(methodTotals);
 }
 
-// =============================
-// GRÁFICO
-// =============================
 function renderPaymentChart(methodTotals) {
     const canvas = document.getElementById('payment-method-chart');
     if (!canvas) return;
@@ -243,22 +286,44 @@ function buildChart(canvas, methodTotals) {
             labels: ['Efectivo', 'Yappy', 'Tarjeta'],
             datasets: [{
                 data: [methodTotals.cash, methodTotals.yappy, methodTotals.card],
-                backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b'],
-                borderWidth: 2,
-                borderColor: '#ffffff'
+                backgroundColor: ['#10b981', '#3b82f6', '#f59e0b'],
+                borderWidth: 0,
+                hoverOffset: 4
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            cutout: '70%',
             plugins: {
-                legend: { position: 'bottom' },
+                legend: { 
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                        font: {
+                            family: "'Plus Jakarta Sans', sans-serif",
+                            size: 12
+                        }
+                    }
+                },
                 tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    cornerRadius: 8,
+                    titleFont: {
+                        family: "'Plus Jakarta Sans', sans-serif",
+                        size: 13
+                    },
+                    bodyFont: {
+                        family: "'Plus Jakarta Sans', sans-serif",
+                        size: 12
+                    },
                     callbacks: {
                         label: function(context) {
                             const val = context.parsed;
                             const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
-                            return context.label + ': $' + val.toFixed(2) + ' (' + pct + '%)';
+                            return ` ${context.label}: ${formatCurrency(val)} (${pct}%)`;
                         }
                     }
                 }
@@ -267,31 +332,30 @@ function buildChart(canvas, methodTotals) {
     });
 }
 
-// =============================
-// TRANSACCIONES - CON CATEGORÍA PRIMERO Y CLICK PARA DETALLES
-// =============================
-
-// Variable para almacenar transacciones actuales
 let currentTransactions = [];
 
 async function loadTransactions() {
     const container = document.getElementById('transactions-list');
     if (!container) return;
-    container.innerHTML = '<p style="color:var(--gray-400);text-align:center;padding:1rem;">Cargando...</p>';
+    
+    container.innerHTML = `
+        <div class="skeleton" style="height: 80px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+        <div class="skeleton" style="height: 80px; border-radius: var(--radius-lg); margin-bottom: var(--space-3);"></div>
+        <div class="skeleton" style="height: 80px; border-radius: var(--radius-lg);"></div>
+    `;
 
     try {
         const dateFrom = document.getElementById('finance-date-from')?.value;
         const dateTo   = document.getElementById('finance-date-to')?.value;
 
-        let query = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(100);
+        let query = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(50);
         if (dateFrom) query = query.gte('shift_date', dateFrom);
         if (dateTo)   query = query.lte('shift_date', dateTo);
 
         const { data, error } = await query;
 
         if (error) {
-            // Fallback
-            let q2 = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(100);
+            let q2 = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(50);
             if (dateFrom) q2 = q2.gte('created_at', dateFrom + 'T00:00:00+00:00');
             if (dateTo)   q2 = q2.lte('created_at', dateTo   + 'T23:59:59+00:00');
             const { data: d2, error: e2 } = await q2;
@@ -306,11 +370,10 @@ async function loadTransactions() {
 
     } catch (error) {
         console.error('Error loading transactions:', error);
-        container.innerHTML = '<p style="color:#ef4444;text-align:center;padding:1rem;">Error cargando transacciones</p>';
+        container.innerHTML = '<p style="color:var(--danger);text-align:center;padding:var(--space-6);">Error cargando transacciones</p>';
     }
 }
 
-// Mapeo de categorías a nombres amigables e iconos
 const categoryMap = {
     'reservation': { name: 'Reserva', icon: '🏨', color: '#0d9488' },
     'supplies': { name: 'Suministros', icon: '📦', color: '#6b7280' },
@@ -330,7 +393,12 @@ const categoryMap = {
 
 function renderTransactions(data, container) {
     if (!data || data.length === 0) {
-        container.innerHTML = '<p style="color:var(--gray-400);text-align:center;padding:2rem;">Sin transacciones en este período</p>';
+        container.innerHTML = `
+            <div style="text-align: center; padding: var(--space-10) var(--space-4); color: var(--gray-400);">
+                <div style="font-size: 3rem; margin-bottom: var(--space-3);">📊</div>
+                <div style="font-weight: 600;">Sin transacciones en este período</div>
+            </div>
+        `;
         return;
     }
 
@@ -341,79 +409,53 @@ function renderTransactions(data, container) {
         const isIncome   = t.type === 'income';
         const amount     = parseFloat(t.amount || 0);
         
-        // CORRECCIÓN: Categoría primero, destacada
         const categoryInfo = categoryMap[t.category] || { name: t.category || 'Otro', icon: '📋', color: '#9ca3af' };
         const method     = (t.payment_method || t.method || '').toLowerCase();
         const methodIcon = method === 'yappy' ? '📱' : method === 'card' ? '💳' : '💵';
         const color      = isIncome ? '#059669' : '#dc2626';
         const sign       = isIncome ? '+' : '-';
         
-        // Crear elemento de transacción clickeable
         const div = document.createElement('div');
         div.className = 'transaction-item';
-        div.style.cssText = `
-            background: white;
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            border: 1px solid #e5e7eb;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        `;
-        div.onmouseenter = () => {
-            div.style.transform = 'translateY(-2px)';
-            div.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        };
-        div.onmouseleave = () => {
-            div.style.transform = 'translateY(0)';
-            div.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-        };
+        div.style.animationDelay = `${index * 0.03}s`;
         div.onclick = () => showTransactionDetail(t);
         
         div.innerHTML = `
-            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 0.5rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <span style="font-size: 1.25rem;">${categoryInfo.icon}</span>
-                    <span style="font-weight: 700; color: ${categoryInfo.color}; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.02em;">
-                        ${categoryInfo.name}
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-3);">
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    <span style="font-size: 1.5rem; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: ${categoryInfo.color}15; border-radius: var(--radius-md);">
+                        ${categoryInfo.icon}
                     </span>
+                    <div>
+                        <div style="font-weight: 700; color: ${categoryInfo.color}; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.02em;">
+                            ${categoryInfo.name}
+                        </div>
+                        <div style="font-size: 0.8125rem; color: var(--gray-500); margin-top: 2px;">
+                            ${formatDateTime(t.created_at)}
+                        </div>
+                    </div>
                 </div>
-                <span style="font-weight: 700; color: ${color}; font-size: 1.125rem; font-family: 'DM Mono', monospace;">
-                    ${sign}$${amount.toFixed(2)}
+                <span style="font-weight: 800; color: ${color}; font-size: 1.125rem; font-family: var(--font-sans); font-feature-settings: 'tnum';">
+                    ${sign}${formatCurrency(amount).replace('$', '')}
                 </span>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.5rem; border-top: 1px solid #f3f4f6;">
-                <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #6b7280;">
-                    <span style="display: flex; align-items: center; gap: 0.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: var(--space-3); border-top: 1px solid var(--gray-100);">
+                <div style="display: flex; align-items: center; gap: var(--space-2); font-size: 0.75rem; color: var(--gray-500);">
+                    <span style="display: flex; align-items: center; gap: var(--space-1); font-weight: 600;">
                         ${isIncome ? '🟢' : '🔴'} ${isIncome ? 'Ingreso' : 'Egreso'}
                     </span>
-                    <span>•</span>
-                    <span>${formatDateTime(t.created_at)}</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    ${t.auto_cash ? '<span style="font-size: 0.625rem; background: #d1fae5; color: #065f46; padding: 0.125rem 0.375rem; border-radius: 9999px; font-weight: 600;">💵 Auto</span>' : ''}
-                    <span style="font-size: 0.875rem;">${methodIcon}</span>
+                <div style="display: flex; align-items: center; gap: var(--space-2);">
+                    ${t.auto_cash ? '<span style="font-size: 0.625rem; background: var(--success-light); color: #065f46; padding: var(--space-1) var(--space-2); border-radius: var(--radius-full); font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.2);">💵 Auto</span>' : ''}
+                    <span style="font-size: 1rem;">${methodIcon}</span>
                 </div>
             </div>
-            ${isAdmin ? `
-                <button onclick="event.stopPropagation(); deleteTransaction('${t.id}')" 
-                    style="position: absolute; top: 0.5rem; right: 0.5rem; background: none; border: none; cursor: pointer; font-size: 1rem; padding: 0.25rem; opacity: 0; transition: opacity 0.2s;"
-                    onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'"
-                    title="Eliminar">🗑️</button>
-            ` : ''}
         `;
-        
-        // Posicionamiento relativo para el botón de eliminar
-        div.style.position = 'relative';
         
         container.appendChild(div);
     });
 }
 
-// =============================
-// NUEVO: MOSTRAR DETALLE DE TRANSACCIÓN EN MODAL
-// =============================
 function showTransactionDetail(transaction) {
     const modal = document.getElementById('transaction-detail-modal');
     if (!modal) return;
@@ -422,26 +464,21 @@ function showTransactionDetail(transaction) {
     const categoryInfo = categoryMap[transaction.category] || { name: transaction.category || 'Otro', icon: '📋', color: '#9ca3af' };
     const amount = parseFloat(transaction.amount || 0);
     
-    // Header
     const header = document.getElementById('trans-detail-header');
     header.className = `transaction-detail-header ${isIncome ? 'income' : 'expense'}`;
     
-    // Tipo badge
     const typeBadge = document.getElementById('trans-detail-type-badge');
-    typeBadge.textContent = isIncome ? '🟢 INGRESO' : '🔴 EGRESO';
+    typeBadge.textContent = isIncome ? 'INGRESO' : 'EGRESO';
     typeBadge.style.color = isIncome ? '#059669' : '#dc2626';
     
-    // Monto
     const amountEl = document.getElementById('trans-detail-amount');
-    amountEl.textContent = (isIncome ? '+' : '-') + '$' + amount.toFixed(2);
+    amountEl.textContent = (isIncome ? '+' : '-') + formatCurrency(amount);
     amountEl.className = `transaction-amount ${isIncome ? 'income' : 'expense'}`;
     
-    // Categoría
     const categoryEl = document.getElementById('trans-detail-category');
-    categoryEl.innerHTML = `<span style="font-size: 1.5rem; margin-right: 0.5rem;">${categoryInfo.icon}</span>${categoryInfo.name}`;
+    categoryEl.innerHTML = `<span style="font-size: 1.75rem; margin-right: var(--space-2);">${categoryInfo.icon}</span>${categoryInfo.name}`;
     categoryEl.style.color = categoryInfo.color;
     
-    // Fecha y hora (convertir de UTC a Panamá)
     const dateObj = dateFromUTC(transaction.created_at);
     document.getElementById('trans-detail-date').textContent = formatDateToPanama(dateObj);
     document.getElementById('trans-detail-time').textContent = new Intl.DateTimeFormat('es-PA', {
@@ -451,15 +488,12 @@ function showTransactionDetail(transaction) {
         hour12: true
     }).format(dateObj) + ' (UTC-5)';
     
-    // Método de pago
     const method = (transaction.payment_method || transaction.method || 'cash').toLowerCase();
-    const methodText = method === 'yappy' ? '📱 Yappy' : method === 'card' ? '💳 Tarjeta de crédito' : '💵 Efectivo';
+    const methodText = method === 'yappy' ? '📱 Yappy' : method === 'card' ? '💳 Tarjeta de crédito/débito' : '💵 Efectivo';
     document.getElementById('trans-detail-method').textContent = methodText;
     
-    // Descripción
     document.getElementById('trans-detail-description').textContent = transaction.description || 'Sin descripción';
     
-    // Badge de auto-caja
     const autoCashContainer = document.getElementById('trans-detail-auto-cash-container');
     if (transaction.auto_cash || (isIncome && method === 'cash' && transaction.category === 'reservation_payment')) {
         autoCashContainer.classList.remove('hidden');
@@ -467,26 +501,29 @@ function showTransactionDetail(transaction) {
         autoCashContainer.classList.add('hidden');
     }
     
-    // Configurar botón de imprimir
     const printBtn = document.getElementById('trans-detail-print-btn');
     printBtn.onclick = () => {
         window.print();
     };
     
-    // Mostrar modal
     document.getElementById('modal-overlay')?.classList.remove('hidden');
     modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeTransactionDetailModal() {
     const modal = document.getElementById('transaction-detail-modal');
-    if (modal) modal.classList.add('hidden');
-    document.getElementById('modal-overlay')?.classList.add('hidden');
+    if (modal) {
+        modal.style.animation = 'slideDownModal 0.3s ease forwards';
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.style.animation = '';
+            document.getElementById('modal-overlay')?.classList.add('hidden');
+            document.body.style.overflow = '';
+        }, 300);
+    }
 }
 
-// =============================
-// ELIMINAR TRANSACCIÓN (ADMIN)
-// =============================
 async function deleteTransaction(id) {
     if (!confirm('¿Eliminar este movimiento permanentemente?')) return;
     try {
@@ -501,9 +538,6 @@ async function deleteTransaction(id) {
     }
 }
 
-// =============================
-// NUEVO MOVIMIENTO (MODAL)
-// =============================
 function showNewTransactionModal() {
     showModal('new-transaction-modal');
 }
@@ -529,8 +563,8 @@ async function saveTransaction() {
         showToast('Completa todos los campos', 'error');
         return;
     }
+    
     try {
-        // CORRECCIÓN: Usar fecha de Panamá
         const today = getTodayInPanama();
         const { error } = await db.from('transactions').insert({
             type,
@@ -542,8 +576,9 @@ async function saveTransaction() {
             shift_date: today,
             created_at: new Date().toISOString()
         });
+        
         if (error) throw error;
-        showToast('Movimiento guardado', 'success');
+        showToast('✅ Movimiento guardado', 'success');
         closeModal();
         document.getElementById('trans-amount').value = '';
         document.getElementById('trans-description').value = '';
@@ -555,20 +590,25 @@ async function saveTransaction() {
     }
 }
 
-// =============================
-// EXPORTAR A EXCEL (SheetJS)
-// =============================
 async function exportFinancesToExcel() {
     const dateFrom = document.getElementById('finance-date-from')?.value;
     const dateTo   = document.getElementById('finance-date-to')?.value;
 
     if (!dateFrom || !dateTo) {
-        showToast('Selecciona un rango de fechas para exportar', 'error');
+        showToast('Selecciona un rango de fechas', 'error');
         return;
     }
 
     const btn = document.getElementById('export-excel-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Exportando...'; }
+    if (btn) { 
+        btn.disabled = true; 
+        btn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px; animation: spin 1s linear infinite;">
+                <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"></circle>
+            </svg>
+            Exportando...
+        `;
+    }
 
     try {
         if (typeof XLSX === 'undefined') {
@@ -589,9 +629,7 @@ async function exportFinancesToExcel() {
         if (error) throw error;
 
         const rows = (data || []).map(t => ({
-            'Fecha': t.created_at
-                ? formatDateTime(t.created_at)
-                : '--',
+            'Fecha': t.created_at ? formatDateTime(t.created_at) : '--',
             'Descripción': t.description || t.category || '',
             'Tipo': t.type === 'income' ? 'Ingreso' : 'Egreso',
             'Categoría': (categoryMap[t.category]?.name || t.category || ''),
@@ -605,26 +643,32 @@ async function exportFinancesToExcel() {
 
         const fileName = `finanzas_${dateFrom}_a_${dateTo}.xlsx`;
         XLSX.writeFile(wb, fileName);
-        showToast('Archivo Excel descargado', 'success');
+        showToast('✅ Archivo Excel descargado', 'success');
 
     } catch (err) {
         console.error('Error exportando Excel:', err);
         showToast('Error al exportar: ' + err.message, 'error');
     } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '⬇ Exportar Excel'; }
+        if (btn) { 
+            btn.disabled = false; 
+            btn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                Exportar Excel
+            `;
+        }
     }
 }
 
-// =============================
-// EXPORTS
-// =============================
-window.loadFinances            = loadFinances;
-window.loadCashBalance         = loadCashBalance;
-window.registerCashIncome      = registerCashIncome;
-window.adjustCashBalance       = adjustCashBalance;
-window.loadTransactions        = loadTransactions;
-window.deleteTransaction       = deleteTransaction;
+window.loadFinances = loadFinances;
+window.loadCashBalance = loadCashBalance;
+window.registerCashIncome = registerCashIncome;
+window.adjustCashBalance = adjustCashBalance;
+window.loadTransactions = loadTransactions;
+window.deleteTransaction = deleteTransaction;
 window.showNewTransactionModal = showNewTransactionModal;
-window.exportFinancesToExcel   = exportFinancesToExcel;
-window.showTransactionDetail   = showTransactionDetail;
+window.exportFinancesToExcel = exportFinancesToExcel;
+window.showTransactionDetail = showTransactionDetail;
 window.closeTransactionDetailModal = closeTransactionDetailModal;
+
