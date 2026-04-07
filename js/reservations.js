@@ -25,16 +25,14 @@ let reservationData = {
 };
 
 // =====================================================
-// (TODO TU CÓDIGO ORIGINAL SE MANTIENE IGUAL HASTA EDICIÓN)
+// EDIT RESERVATION
 // =====================================================
-
-
-// ================= EDIT RESERVATION =================
 document.getElementById('edit-reservation-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+
     const id = document.getElementById('edit-res-id')?.value;
     const roomBedValue = document.getElementById('edit-room-bed')?.value;
-    
+
     let updateData = {
         check_in_date: document.getElementById('edit-checkin')?.value,
         check_out_date: document.getElementById('edit-checkout')?.value,
@@ -42,51 +40,60 @@ document.getElementById('edit-reservation-form')?.addEventListener('submit', asy
         notes: document.getElementById('edit-notes')?.value,
         updated_at: getLocalDateTime() // ✅ FIX
     };
-    
-    if (roomBedValue?.startsWith('room-')) { 
-        updateData.room_id = roomBedValue.replace('room-', ''); 
-        updateData.bed_id = null; 
-    } else if (roomBedValue?.startsWith('bed-')) { 
-        updateData.bed_id = roomBedValue.replace('bed-', ''); 
-        updateData.room_id = null; 
+
+    if (roomBedValue?.startsWith('room-')) {
+        updateData.room_id = roomBedValue.replace('room-', '');
+        updateData.bed_id = null;
+    } else if (roomBedValue?.startsWith('bed-')) {
+        updateData.bed_id = roomBedValue.replace('bed-', '');
+        updateData.room_id = null;
     }
-    
+
     try {
         const { error } = await db.from('reservations').update(updateData).eq('id', id);
+
         if (error) throw error;
+
         showToast('Reserva actualizada', 'success');
         closeEditModal();
         showReservations();
+
     } catch (err) {
         showToast('Error al actualizar: ' + err.message, 'error');
     }
 });
 
-
-// ================= CANCEL RESERVATION =================
+// =====================================================
+// CANCEL RESERVATION
+// =====================================================
 async function cancelReservation(reservationId) {
+
     if (!confirm('¿Estás seguro de cancelar esta reserva?')) return;
-    
+
     try {
         const { data: res, error: fetchError } = await db.from('reservations')
             .select('*, guest:guest_id(full_name), payments(*)')
             .eq('id', reservationId)
             .single();
+
         if (fetchError) throw fetchError;
-        
+
         const cashPayments = res.payments?.filter(p => p.payment_method === 'cash') || [];
         const totalCashRefund = cashPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
-        
+
+        // 🔥 CANCELAR RESERVA
         const { error } = await db.from('reservations')
-            .update({ 
-                status: 'cancelled', 
-                deleted_at: getLocalDateTime() // ✅ FIX
+            .update({
+                status: 'cancelled',
+                deleted_at: getLocalDateTime()
             })
             .eq('id', reservationId);
 
         if (error) throw error;
-        
+
+        // 🔥 REGISTRAR EGRESO SI HUBO EFECTIVO
         if (totalCashRefund > 0) {
+
             await db.from('transactions').insert([{
                 type: 'expense',
                 category: 'cancellation_refund',
@@ -94,27 +101,28 @@ async function cancelReservation(reservationId) {
                 payment_method: 'cash',
                 description: `Reembolso cancelación: ${res.guest?.full_name}`,
                 reservation_id: reservationId,
-                shift_date: getLocalDate(), // ✅ FIX
+                shift_date: getLocalDate(), // ✅ LOCAL DATE
+                created_at: getLocalDateTime(), // 🔥 FIX IMPORTANTE
                 created_by: currentUser?.id
             }]);
 
+            // 🔥 ACTUALIZAR CAJA SI EXISTE FUNCIÓN GLOBAL
             if (window.updateCashBalance) {
                 await window.updateCashBalance(totalCashRefund, 'subtract');
             }
         }
-        
+
         showToast('Reserva cancelada', 'success');
         showReservations();
-        
+
     } catch (error) {
         console.error('Error cancelling:', error);
         showToast('Error al cancelar: ' + error.message, 'error');
     }
 }
 
-
 // =====================================================
-// EXPORTS (SE MANTIENE IGUAL)
+// EXPORTS
 // =====================================================
 window.resetReservationForm = resetReservationForm;
 window.showDormitoryOptions = showDormitoryOptions;
