@@ -968,7 +968,7 @@ async function registerPendingPayment() {
             reservation_id: reservationId,
             amount: paymentAmount,
             payment_method: paymentMethod,
-            payment_type: newBalance <= 0.001 ? 'full' : 'partial',
+            payment_type: newBalance <= 0.001 ? 'full' : 'balance',
             notes: 'Abono desde edición de reserva',
             created_by: user.id
         });
@@ -1128,3 +1128,4 @@ window.doCheckIn = doCheckIn;
 window.doCheckOut = doCheckOut;
 window.cancelReservation = cancelReservation;
 window.deleteReservation = deleteReservation;
+
