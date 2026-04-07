@@ -341,14 +341,16 @@ async function loadTransactions() {
         const dateFrom = document.getElementById('finance-date-from')?.value;
         const dateTo   = document.getElementById('finance-date-to')?.value;
 
-        let query = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(50);
+        let query = db.from('transactions')
+            .select('*, reservation:reservation_id(guest:guest_id(full_name))')
+            .order('created_at', { ascending: false }).limit(50);
         if (dateFrom) query = query.gte('shift_date', dateFrom);
         if (dateTo)   query = query.lte('shift_date', dateTo);
 
         const { data, error } = await query;
 
         if (error) {
-            let q2 = db.from('transactions').select('*').order('created_at', { ascending: false }).limit(50);
+            let q2 = db.from('transactions').select('*, reservation:reservation_id(guest:guest_id(full_name))').order('created_at', { ascending: false }).limit(50);
             if (dateFrom) q2 = q2.gte('created_at', dateFrom + 'T00:00:00+00:00');
             if (dateTo)   q2 = q2.lte('created_at', dateTo   + 'T23:59:59+00:00');
             const { data: d2, error: e2 } = await q2;
@@ -454,7 +456,7 @@ function renderTransactions(data, container) {
     });
 }
 
-function showTransactionDetail(transaction) {
+async function showTransactionDetail(transaction) {
     const modal = document.getElementById('transaction-detail-modal');
     if (!modal) return;
     
@@ -491,6 +493,31 @@ function showTransactionDetail(transaction) {
     document.getElementById('trans-detail-method').textContent = methodText;
     
     document.getElementById('trans-detail-description').textContent = transaction.description || 'Sin descripción';
+
+    // Show guest name if available
+    const guestContainer = document.getElementById('trans-detail-guest-container');
+    const guestEl = document.getElementById('trans-detail-guest');
+    
+    // Try from joined data first, then fetch if needed
+    let guestName = transaction.reservation?.guest?.full_name || null;
+    
+    if (!guestName && transaction.reservation_id) {
+        try {
+            const { data: res } = await db
+                .from('reservations')
+                .select('guest:guest_id(full_name)')
+                .eq('id', transaction.reservation_id)
+                .single();
+            guestName = res?.guest?.full_name || null;
+        } catch (e) { /* no guest found */ }
+    }
+
+    if (guestName && guestContainer && guestEl) {
+        guestEl.textContent = guestName;
+        guestContainer.classList.remove('hidden');
+    } else if (guestContainer) {
+        guestContainer.classList.add('hidden');
+    }
     
     const autoCashContainer = document.getElementById('trans-detail-auto-cash-container');
     if (transaction.auto_cash || (isIncome && method === 'cash' && transaction.category === 'reservation_payment')) {
@@ -500,9 +527,7 @@ function showTransactionDetail(transaction) {
     }
     
     const printBtn = document.getElementById('trans-detail-print-btn');
-    printBtn.onclick = () => {
-        window.print();
-    };
+    printBtn.onclick = () => { window.print(); };
     
     document.getElementById('modal-overlay')?.classList.remove('hidden');
     modal.classList.remove('hidden');
