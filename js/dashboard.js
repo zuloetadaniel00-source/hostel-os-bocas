@@ -1,20 +1,13 @@
 // =====================================================
-// DASHBOARD - OPTIMIZADO (FIX TIMEZONE PANAMÁ)
+// DASHBOARD - OPTIMIZADO
 // =====================================================
 
-// ✅ FUNCIÓN GLOBAL SEGURA (NUEVA)
-function getLocalDate() {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    const local = new Date(now.getTime() - (offset * 60000));
-    return local.toISOString().split('T')[0];
-}
-
 async function loadDashboard() {
-    const today = getLocalDate(); // ✅ FIX
+    const today = getTodayPanama(); // TIMEZONE FIX
     const dateEl = document.getElementById('current-date');
     if (dateEl) dateEl.textContent = `Hoy: ${formatDate(today)}`;
     
+    // Cargar en paralelo sin bloquear UI
     Promise.all([
         loadOccupancy(),
         loadTodayStats(),
@@ -63,7 +56,7 @@ async function loadOccupancy() {
 }
 
 async function loadTodayStats() {
-    const today = getLocalDate(); // ✅ FIX
+    const today = getTodayPanama(); // TIMEZONE FIX
     
     try {
         const [{ data: checkins }, { data: checkouts }] = await Promise.all([
@@ -125,7 +118,7 @@ async function loadAlerts() {
             });
         });
         
-        const today = getLocalDate(); // ✅ FIX
+        const today = getTodayPanama(); // TIMEZONE FIX
         const { data: pendingPayments } = await db
             .from('reservations')
             .select('*, guest:guest_id(full_name)')
@@ -168,7 +161,7 @@ async function loadUpcomingReservations() {
     const list = document.getElementById('upcoming-list');
     if (!list) return;
     
-    const today = getLocalDate(); // ✅ FIX
+    const today = getTodayPanama(); // TIMEZONE FIX
     
     try {
         const { data: reservations } = await db
@@ -225,14 +218,14 @@ function getStatusLabel(status) {
 
 function showTodayCheckins() {
     const dateInput = document.getElementById('reservations-date');
-    if (dateInput) dateInput.value = getLocalDate(); // ✅ FIX
+    if (dateInput) dateInput.value = getTodayPanama(); // TIMEZONE FIX
     showTab('checkins');
     showReservations();
 }
 
 function showTodayCheckouts() {
     const dateInput = document.getElementById('reservations-date');
-    if (dateInput) dateInput.value = getLocalDate(); // ✅ FIX
+    if (dateInput) dateInput.value = getTodayPanama(); // TIMEZONE FIX
     showTab('checkouts');
     showReservations();
 }
