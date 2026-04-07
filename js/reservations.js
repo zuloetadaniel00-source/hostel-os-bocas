@@ -532,8 +532,8 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                 
             if (payError) console.warn('Error creando pago:', payError);
 
-            // If cash, add to register
             if (paymentMethod === 'cash') {
+                // addCashIncome handles both cash_register AND transaction record
                 try {
                     const cashResult = await window.addCashIncome(
                         initialPayment,
@@ -541,7 +541,6 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                         'reservation',
                         reservation.id
                     );
-
                     if (cashResult.success) {
                         showToast(`✅ Reserva creada. $${initialPayment.toFixed(2)} agregados a caja`, 'success');
                     } else {
@@ -552,6 +551,19 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                     showToast('Reserva creada pero error al actualizar caja', 'warning');
                 }
             } else {
+                // For Yappy/Card: only create transaction record (no cash register entry)
+                const { error: transError } = await db.from('transactions').insert({
+                    type: 'income',
+                    category: 'reservation',
+                    amount: initialPayment,
+                    payment_method: paymentMethod,
+                    description: `Pago reserva - ${guestName}`,
+                    shift_date: getTodayInPanama(),
+                    reservation_id: reservation.id,
+                    created_by: userId,
+                    created_at: new Date().toISOString()
+                });
+                if (transError) console.warn('Error creando transacción:', transError);
                 showToast('✅ Reserva creada exitosamente', 'success');
             }
         } else {
@@ -961,10 +973,9 @@ async function registerPendingPayment() {
         });
         if (payError) throw payError;
 
-        // Update reservation balances
+        // Update reservation balances — balance_due is a generated column, only update amount_paid and payment_status
         const { error: updateError } = await db.from('reservations').update({
             amount_paid: newAmountPaid,
-            balance_due: Math.max(0, newBalance),
             payment_status: newPaymentStatus,
             updated_at: new Date().toISOString()
         }).eq('id', reservationId);
