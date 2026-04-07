@@ -15,6 +15,13 @@ const esc = (str) => {
         .replace(/'/g, '&#039;');
 };
 
+// =====================================================
+// TIMEZONE: Retorna fecha actual en America/Panama (YYYY-MM-DD)
+// =====================================================
+function getTodayPanama() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+}
+
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -89,11 +96,11 @@ function showFinances() {
 
     document.getElementById('page-title').textContent = 'Finanzas';
 
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const today = now.toISOString().split('T')[0];
-    const firstDayStr = firstDay.toISOString().split('T')[0];
+    // TIMEZONE FIX: usar fecha local de Panamá
+    const today = getTodayPanama();
+    const todayDate = new Date(today + 'T12:00:00');
+    const firstDay = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+    const firstDayStr = firstDay.toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 
     const dateFromEl = document.getElementById('finance-date-from');
     const dateToEl = document.getElementById('finance-date-to');
@@ -110,11 +117,11 @@ function goBack() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    const firstDayStr = firstDay.toISOString().split('T')[0];
+    // TIMEZONE FIX: usar fecha local de Panamá en todos los campos de fecha
+    const todayStr = getTodayPanama();
+    const todayDate = new Date(todayStr + 'T12:00:00');
+    const firstDay = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+    const firstDayStr = firstDay.toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 
     const setValue = (id, value) => {
         const el = document.getElementById(id);
@@ -172,6 +179,7 @@ function formatDateTime(isoString) {
     if (!isoString) return '--';
     const date = new Date(isoString);
     return date.toLocaleString('es-PA', {
+        timeZone: 'America/Panama',
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
@@ -180,6 +188,7 @@ function formatDateTime(isoString) {
 }
 
 // Exponer funciones globales
+window.getTodayPanama = getTodayPanama;
 window.showDashboard = showDashboard;
 window.showReservations = showReservations;
 window.showNewReservation = showNewReservation;
