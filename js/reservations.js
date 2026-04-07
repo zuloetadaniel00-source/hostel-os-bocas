@@ -1,5 +1,5 @@
 // =====================================================
-// RESERVAS - OPTIMIZADO CON ZONA HORARIA Y AUTO-CAJA
+// RESERVAS - CON INTEGRACIÓN COMPLETA A CAJA
 // =====================================================
 
 let reservationData = {
@@ -10,15 +10,12 @@ let reservationData = {
     guestId: null
 };
 
-// Función auxiliar para subir archivos a storage de forma segura
 async function uploadFileToStorage(file, folder) {
     if (!file) return null;
     
     try {
         const { data: { session } } = await db.auth.getSession();
-        if (!session) {
-            throw new Error('No hay sesión activa para subir archivos');
-        }
+        if (!session) throw new Error('No hay sesión activa');
 
         const fileName = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
         
@@ -31,20 +28,13 @@ async function uploadFileToStorage(file, folder) {
                 contentType: file.type
             });
             
-        if (error) {
-            console.error('Error de upload:', error);
-            throw error;
-        }
+        if (error) throw error;
 
-        const { data: { publicUrl } } = db
-            .storage
-            .from('receipts')
-            .getPublicUrl(fileName);
-            
+        const { data: { publicUrl } } = db.storage.from('receipts').getPublicUrl(fileName);
         return publicUrl;
         
     } catch (error) {
-        console.error('Error en uploadFileToStorage:', error);
+        console.error('Error en upload:', error);
         if (folder === 'guests') return null;
         throw error;
     }
@@ -68,13 +58,12 @@ function resetReservationForm() {
     if (photoPreview) photoPreview.classList.add('hidden');
     if (receiptPreview) receiptPreview.classList.add('hidden');
 
-    // Resetear estado del comprobante al resetear el form
     const uploadGroup = document.getElementById('receipt-upload-group');
     const receiptInput = document.getElementById('payment-receipt');
     if (uploadGroup) uploadGroup.classList.add('hidden');
     if (receiptInput) receiptInput.required = false;
     
-    // CORRECCIÓN: Resetear fechas a hoy y mañana en Panamá
+    // Resetear fechas
     const today = getTodayInPanama();
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -105,13 +94,10 @@ function updateAvailability() {
 }
 
 async function loadDormitoryOptions() {
-    // CORRECCIÓN: Obtener fechas y convertir a UTC para consulta
     const checkInLocal = document.getElementById('check-in-date')?.value;
     const checkOutLocal = document.getElementById('check-out-date')?.value;
-    
     if (!checkInLocal || !checkOutLocal) return;
     
-    // Convertir a UTC para consulta a Supabase
     const checkInUTC = dateToUTC(checkInLocal);
     const checkOutUTC = dateToUTC(checkOutLocal);
     
@@ -149,19 +135,16 @@ async function loadDormitoryOptions() {
             list.appendChild(div);
         });
     } catch (error) {
-        console.error('Error loading dormitories:', error);
+        console.error('Error:', error);
         list.innerHTML = '<p class="text-muted">Error al cargar</p>';
     }
 }
 
 async function loadPrivateOptions() {
-    // CORRECCIÓN: Obtener fechas y convertir a UTC para consulta
     const checkInLocal = document.getElementById('check-in-date')?.value;
     const checkOutLocal = document.getElementById('check-out-date')?.value;
-    
     if (!checkInLocal || !checkOutLocal) return;
     
-    // Convertir a UTC para consulta a Supabase
     const checkInUTC = dateToUTC(checkInLocal);
     const checkOutUTC = dateToUTC(checkOutLocal);
     
@@ -198,7 +181,7 @@ async function loadPrivateOptions() {
             list.appendChild(div);
         });
     } catch (error) {
-        console.error('Error loading private rooms:', error);
+        console.error('Error:', error);
         list.innerHTML = '<p class="text-muted">Error al cargar</p>';
     }
 }
@@ -246,8 +229,6 @@ function selectPrivateRoom(room, element) {
 
 document.getElementById('step1-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    
-    // CORRECCIÓN: Guardar fechas locales y convertir a UTC para envío
     const checkInLocal = document.getElementById('check-in-date')?.value;
     const checkOutLocal = document.getElementById('check-out-date')?.value;
     
@@ -276,7 +257,7 @@ document.getElementById('guest-photo')?.addEventListener('change', (e) => {
         reader.onload = (e) => {
             const preview = document.getElementById('guest-photo-preview');
             if (preview) {
-                preview.innerHTML = `<img src="${e.target.result}" alt="Foto del huésped">`;
+                preview.innerHTML = `<img src="${e.target.result}" alt="Foto">`;
                 preview.classList.remove('hidden');
             }
         };
@@ -292,10 +273,8 @@ document.getElementById('step2-form')?.addEventListener('submit', (e) => {
 });
 
 function updateReservationSummary() {
-    // CORRECCIÓN: Usar fechas locales para cálculo de noches
     const checkInLocal = document.getElementById('check-in-date')?.value;
     const checkOutLocal = document.getElementById('check-out-date')?.value;
-    
     if (!checkInLocal || !checkOutLocal) return;
     
     const nights = Math.ceil((new Date(checkOutLocal) - new Date(checkInLocal)) / (1000 * 60 * 60 * 24));
@@ -329,11 +308,9 @@ function toggleReceiptUpload() {
     const receiptInput = document.getElementById('payment-receipt');
     
     if (method === 'yappy' || method === 'card') {
-        // Mostrar y hacer obligatorio
         uploadGroup?.classList.remove('hidden');
         if (receiptInput) receiptInput.required = true;
     } else {
-        // Efectivo: ocultar, no obligatorio y limpiar valor
         uploadGroup?.classList.add('hidden');
         if (receiptInput) {
             receiptInput.required = false;
@@ -360,7 +337,7 @@ document.getElementById('payment-receipt')?.addEventListener('change', (e) => {
 });
 
 // =====================================================
-// CREAR RESERVA - CON AUTO-SUMA A CAJA
+// CREAR RESERVA - CON INTEGRACIÓN A CAJA
 // =====================================================
 document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -370,11 +347,10 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
 
     try {
         const { data: { session } } = await db.auth.getSession();
-        if (!session?.user) {
-            throw new Error('No hay sesión activa. Por favor, inicia sesión nuevamente.');
-        }
+        if (!session?.user) throw new Error('No hay sesión activa');
         
         const userId = session.user.id;
+        const guestName = document.getElementById('guest-name')?.value;
 
         const notesEl = document.getElementById('guest-notes');
         const totalAmount = parseFloat(document.getElementById('total-amount')?.value) || 0;
@@ -385,7 +361,7 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
         const receiptFile = document.getElementById('payment-receipt')?.files[0];
         const guestPhotoFile = document.getElementById('guest-photo')?.files[0];
 
-        // Validar comprobante solo si el método lo requiere
+        // Validar comprobante si es necesario
         if ((paymentMethod === 'yappy' || paymentMethod === 'card') && !receiptFile) {
             showToast('El comprobante es obligatorio para Yappy o Tarjeta', 'error');
             if (btn) { btn.disabled = false; btn.textContent = '✓ Crear Reserva'; }
@@ -402,14 +378,14 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
                 receiptFile ? uploadFileToStorage(receiptFile, 'receipts') : Promise.resolve(null)
             ]);
         } catch (uploadError) {
-            console.warn('Error en upload de archivos:', uploadError);
+            console.warn('Error en upload:', uploadError);
         }
 
         // Crear huésped
         const { data: guest, error: guestError } = await db
             .from('guests')
             .insert([{
-                full_name: document.getElementById('guest-name')?.value,
+                full_name: guestName,
                 email: document.getElementById('guest-email')?.value || null,
                 nationality: document.getElementById('guest-nationality')?.value || null,
                 photo_url: guestPhotoUrl,
@@ -418,20 +394,17 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
             .select()
             .single();
 
-        if (guestError) {
-            console.error('Error creating guest:', guestError);
-            throw new Error(`Error al crear huésped: ${guestError.message}`);
-        }
+        if (guestError) throw new Error(`Error al crear huésped: ${guestError.message}`);
 
-        // Crear reserva con fechas UTC
+        // Crear reserva
         const { data: reservation, error: resError } = await db
             .from('reservations')
             .insert([{
                 guest_id: guest.id,
                 room_id: reservationData.roomId,
                 bed_id: reservationData.bedId,
-                check_in_date: reservationData.checkIn,  // Ya está en UTC
-                check_out_date: reservationData.checkOut, // Ya está en UTC
+                check_in_date: reservationData.checkIn,
+                check_out_date: reservationData.checkOut,
                 total_amount: totalAmount,
                 amount_paid: initialPayment,
                 status: status === 'confirmed' ? 'confirmed' : 'pending',
@@ -443,67 +416,57 @@ document.getElementById('step3-form')?.addEventListener('submit', async (e) => {
             .select()
             .single();
         
-        if (resError) {
-            console.error('Error creating reservation:', resError);
-            throw new Error(`Error al crear reserva: ${resError.message}`);
-        }
+        if (resError) throw new Error(`Error al crear reserva: ${resError.message}`);
 
         // =====================================================
-        // PROCESAR PAGO Y ACTUALIZAR CAJA
+        // PROCESAR PAGO Y ACTUALIZAR CAJA (SI ES EFECTIVO)
         // =====================================================
         if (initialPayment > 0) {
-            // 1. Crear pago
-            try {
-                const { error: payError } = await db
-                    .from('payments')
-                    .insert([{
-                        reservation_id: reservation.id,
-                        amount: initialPayment,
-                        payment_method: paymentMethod,
-                        payment_type: initialPayment >= totalAmount ? 'full' : 'deposit',
-                        receipt_url: receiptUrl,
-                        notes: 'Pago inicial al crear reserva',
-                        created_by: userId
-                    }]);
-                    
-                if (payError) console.warn('Error creating payment:', payError);
-            } catch (payCatchError) {
-                console.warn('Payment creation failed:', payCatchError);
-            }
-            
-            // 2. NUEVO: Actualizar caja automáticamente si es efectivo
+            // 1. Crear registro de pago
+            const { error: payError } = await db
+                .from('payments')
+                .insert([{
+                    reservation_id: reservation.id,
+                    amount: initialPayment,
+                    payment_method: paymentMethod,
+                    payment_type: initialPayment >= totalAmount ? 'full' : 'deposit',
+                    receipt_url: receiptUrl,
+                    notes: 'Pago inicial al crear reserva',
+                    created_by: userId
+                }]);
+                
+            if (payError) console.warn('Error creando pago:', payError);
+
+            // 2. NUEVO: Si es efectivo, sumar automáticamente a caja física
             if (paymentMethod === 'cash') {
                 try {
-                    // Usar la función RPC si existe, o insertar directamente
-                    const { error: cashError } = await db.rpc('process_cash_transaction', {
-                        p_type: 'income',
-                        p_category: 'reservation_payment',
-                        p_amount: initialPayment,
-                        p_description: `Pago reserva - ${guest.full_name}`,
-                        p_user_id: userId
-                    });
-                    
-                    if (cashError) {
-                        // Fallback: actualizar manualmente
-                        await updateCashBalance(initialPayment, 'add');
+                    const cashResult = await window.addCashIncome(
+                        initialPayment,
+                        `Pago reserva - ${guestName} (Hab ${reservationData.roomId || reservationData.bedId})`,
+                        'reservation',
+                        reservation.id
+                    );
+
+                    if (cashResult.success) {
+                        showToast(`✅ Reserva creada. $${initialPayment.toFixed(2)} agregados a caja. Balance: $${cashResult.newBalance.toFixed(2)}`, 'success');
+                    } else {
+                        showToast('Reserva creada pero hubo un problema con la caja', 'warning');
                     }
-                    
-                    showToast(`✅ Reserva creada y $${initialPayment.toFixed(2)} agregados a caja`, 'success');
                 } catch (cashError) {
-                    console.error('Error updating cash balance:', cashError);
-                    showToast('Reserva creada pero error al actualizar caja', 'warning');
+                    console.error('Error actualizando caja:', cashError);
+                    showToast('Reserva creada pero error al actualizar caja: ' + cashError.message, 'warning');
                 }
             } else {
                 showToast('Reserva creada exitosamente', 'success');
             }
         } else {
-            showToast('Reserva creada exitosamente', 'success');
+            showToast('Reserva creada exitosamente (sin pago inicial)', 'success');
         }
 
         showReservations();
 
     } catch (error) {
-        console.error('Error creating reservation:', error);
+        console.error('Error:', error);
         showToast('Error al crear reserva: ' + error.message, 'error');
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = '✓ Crear Reserva'; }
@@ -520,7 +483,6 @@ async function loadReservationsByDate() {
         return;
     }
     
-    // CORRECCIÓN: Convertir fecha local a UTC para consulta
     const dateUTC = dateToUTC(dateLocal);
     const dateQuery = dateUTC.split('T')[0];
     
@@ -542,10 +504,8 @@ async function loadReservationsByDate() {
         
         list.innerHTML = '';
         reservations.forEach(res => {
-            // CORRECCIÓN: Convertir fechas UTC a local para comparación
             const resCheckInLocal = dateFromUTC(res.check_in_date);
             const resCheckInStr = resCheckInLocal.toISOString().split('T')[0];
-            
             const isCheckin = resCheckInStr === dateLocal;
             
             const location = res.bed ? `Cama ${res.bed.bed_number} - Hab ${res.bed.room?.number}` : res.room?.name || 'N/A';
@@ -569,7 +529,7 @@ async function loadReservationsByDate() {
             list.appendChild(card);
         });
     } catch (error) {
-        console.error('Error loading reservations:', error);
+        console.error('Error:', error);
         list.innerHTML = '<p class="text-muted">Error al cargar</p>';
     }
 }
@@ -649,12 +609,12 @@ async function showReservationDetail(reservationId) {
         showPage('reservation-detail-page');
         
     } catch (error) {
-        console.error('Error showing reservation detail:', error);
+        console.error('Error:', error);
     }
 }
 
 async function deleteReservation(id) {
-    if (!confirm('⚠️ ¿Eliminar esta reserva permanentemente? Esta acción no se puede deshacer.')) return;
+    if (!confirm('⚠️ ¿Eliminar esta reserva permanentemente?')) return;
     try {
         await db.from('payments').delete().eq('reservation_id', id);
         await db.from('transactions').delete().eq('reservation_id', id);
@@ -663,7 +623,7 @@ async function deleteReservation(id) {
         showToast('Reserva eliminada', 'success');
         showReservations();
     } catch (error) {
-        console.error('Error deleting reservation:', error);
+        console.error('Error:', error);
         showToast('Error al eliminar: ' + error.message, 'error');
     }
 }
@@ -679,7 +639,6 @@ async function openEditReservation(reservationId) {
         
         document.getElementById('edit-res-id').value = res.id;
         
-        // CORRECCIÓN: Convertir fechas UTC a local para el formulario
         const checkInLocal = dateFromUTC(res.check_in_date);
         const checkOutLocal = dateFromUTC(res.check_out_date);
         
@@ -714,7 +673,7 @@ async function openEditReservation(reservationId) {
         showModal('edit-reservation-modal');
         
     } catch (error) {
-        console.error('Error opening edit modal:', error);
+        console.error('Error:', error);
         showToast('Error al cargar', 'error');
     }
 }
@@ -727,7 +686,6 @@ document.getElementById('edit-reservation-form')?.addEventListener('submit', asy
     const checkInLocal = document.getElementById('edit-checkin')?.value;
     const checkOutLocal = document.getElementById('edit-checkout')?.value;
     
-    // CORRECCIÓN: Convertir fechas locales a UTC
     const checkInUTC = dateToUTC(checkInLocal);
     const checkOutUTC = dateToUTC(checkOutLocal);
     
@@ -798,25 +756,27 @@ async function cancelReservation(reservationId) {
             .eq('id', reservationId);
         if (error) throw error;
         
+        // NUEVO: Si hay reembolso en efectivo, restar de caja
         if (totalCashRefund > 0) {
-            await db.from('transactions').insert([{
-                type: 'expense',
-                category: 'cancellation_refund',
-                amount: totalCashRefund,
-                payment_method: 'cash',
-                description: `Reembolso cancelación: ${res.guest?.full_name}`,
-                reservation_id: reservationId,
-                shift_date: getTodayInPanama(),
-                created_by: currentUser?.id
-            }]);
-            if (window.updateCashBalance) await window.updateCashBalance(totalCashRefund, 'subtract');
+            try {
+                await window.subtractCashExpense(
+                    totalCashRefund,
+                    `Reembolso cancelación - ${res.guest?.full_name}`,
+                    'refund'
+                );
+                showToast(`Reserva cancelada. $${totalCashRefund.toFixed(2)} descontados de caja por reembolso.`, 'success');
+            } catch (cashError) {
+                console.error('Error reembolsando caja:', cashError);
+                showToast('Reserva cancelada pero error al actualizar caja', 'warning');
+            }
+        } else {
+            showToast('Reserva cancelada', 'success');
         }
         
-        showToast('Reserva cancelada', 'success');
         showReservations();
         
     } catch (error) {
-        console.error('Error cancelling:', error);
+        console.error('Error:', error);
         showToast('Error al cancelar: ' + error.message, 'error');
     }
 }
