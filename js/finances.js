@@ -75,7 +75,7 @@ async function registerCashIncome() {
     }
 }
 
-async function adjustCashBalance() {
+async function handleCashAdjust() {
     const newAmount = parseFloat(document.getElementById('cash-adjust-amount')?.value);
     const reason = document.getElementById('cash-adjust-reason')?.value?.trim();
     
@@ -661,10 +661,11 @@ async function exportFinancesToExcel() {
 window.loadFinances = loadFinances;
 window.loadCashBalance = loadCashBalance;
 window.registerCashIncome = registerCashIncome;
-window.adjustCashBalance = adjustCashBalance;
+window.handleCashAdjust = handleCashAdjust;
 window.loadTransactions = loadTransactions;
 window.deleteTransaction = deleteTransaction;
 window.showNewTransactionModal = showNewTransactionModal;
 window.exportFinancesToExcel = exportFinancesToExcel;
 window.showTransactionDetail = showTransactionDetail;
 window.closeTransactionDetailModal = closeTransactionDetailModal;
+
