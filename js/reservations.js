@@ -887,6 +887,25 @@ async function openEditReservation(reservationId) {
         beds.filter(b => b.id !== res.bed_id && b.status === 'available').forEach(bed => {
             select.innerHTML += `<option value="bed-${bed.id}">Cama ${bed.bed_number} - Hab ${bed.room?.number}</option>`;
         });
+
+        // Show payment section if there is a pending balance
+        const balanceDue = parseFloat(res.balance_due || 0);
+        const paymentSection = document.getElementById('edit-payment-section');
+        if (paymentSection) {
+            if (balanceDue > 0) {
+                paymentSection.classList.remove('hidden');
+                const totalEl = document.getElementById('edit-total-display');
+                const paidEl = document.getElementById('edit-paid-display');
+                const balanceEl = document.getElementById('edit-balance-display');
+                const amountInput = document.getElementById('edit-payment-amount');
+                if (totalEl) totalEl.textContent = formatCurrency(res.total_amount);
+                if (paidEl) paidEl.textContent = formatCurrency(res.amount_paid || 0);
+                if (balanceEl) balanceEl.textContent = formatCurrency(balanceDue);
+                if (amountInput) amountInput.value = balanceDue.toFixed(2);
+            } else {
+                paymentSection.classList.add('hidden');
+            }
+        }
         
         showModal('edit-reservation-modal');
         
@@ -894,6 +913,88 @@ async function openEditReservation(reservationId) {
         console.error('Error:', error);
         showToast('Error al cargar datos', 'error');
     }
+}
+
+// Register a partial or full payment on an existing reservation
+async function registerPendingPayment() {
+    const reservationId = document.getElementById('edit-res-id')?.value;
+    const paymentAmount = parseFloat(document.getElementById('edit-payment-amount')?.value);
+    const paymentMethod = document.querySelector('input[name="edit-payment-method"]:checked')?.value || 'cash';
+
+    if (!reservationId) {
+        showToast('Error: ID de reserva no encontrado', 'error');
+        return;
+    }
+    if (!paymentAmount || paymentAmount <= 0) {
+        showToast('Ingresa un monto válido', 'error');
+        return;
+    }
+
+    try {
+        // Fetch current reservation
+        const { data: res, error: fetchError } = await db.from('reservations')
+            .select('*, guest:guest_id(full_name)')
+            .eq('id', reservationId)
+            .single();
+        if (fetchError || !res) throw new Error('No se pudo cargar la reserva');
+
+        const currentBalance = parseFloat(res.balance_due || 0);
+        if (paymentAmount > currentBalance + 0.001) {
+            showToast(`El monto no puede superar el saldo pendiente (${formatCurrency(currentBalance)})`, 'error');
+            return;
+        }
+
+        const newAmountPaid = parseFloat(res.amount_paid || 0) + paymentAmount;
+        const newBalance = parseFloat(res.total_amount) - newAmountPaid;
+        const newPaymentStatus = newBalance <= 0.001 ? 'paid' : 'partial';
+
+        const { data: { user } } = await db.auth.getUser();
+
+        // Insert payment record
+        const { error: payError } = await db.from('payments').insert({
+            reservation_id: reservationId,
+            amount: paymentAmount,
+            payment_method: paymentMethod,
+            payment_type: newBalance <= 0.001 ? 'full' : 'partial',
+            notes: 'Abono desde edición de reserva',
+            created_by: user.id
+        });
+        if (payError) throw payError;
+
+        // Update reservation balances
+        const { error: updateError } = await db.from('reservations').update({
+            amount_paid: newAmountPaid,
+            balance_due: Math.max(0, newBalance),
+            payment_status: newPaymentStatus,
+            updated_at: new Date().toISOString()
+        }).eq('id', reservationId);
+        if (updateError) throw updateError;
+
+        // If cash, update cash register automatically
+        if (paymentMethod === 'cash') {
+            await window.addCashIncome(
+                paymentAmount,
+                `Abono reserva - ${res.guest?.full_name || 'Huésped'}`,
+                'reservation',
+                reservationId
+            );
+            showToast(`✅ $${paymentAmount.toFixed(2)} cobrados y sumados a caja`, 'success');
+        } else {
+            showToast(`✅ Pago de $${paymentAmount.toFixed(2)} registrado correctamente`, 'success');
+        }
+
+        closeEditModal();
+        showReservations();
+
+    } catch (error) {
+        console.error('Error registering payment:', error);
+        showToast('Error al registrar pago: ' + error.message, 'error');
+    }
+}
+
+// addPayment — called from reservation detail when balance_due > 0
+async function addPayment(reservationId) {
+    await openEditReservation(reservationId);
 }
 
 document.getElementById('edit-reservation-form')?.addEventListener('submit', async (e) => {
@@ -1009,8 +1110,9 @@ window.loadReservationsByDate = loadReservationsByDate;
 window.showTab = showTab;
 window.showReservationDetail = showReservationDetail;
 window.openEditReservation = openEditReservation;
+window.addPayment = addPayment;
+window.registerPendingPayment = registerPendingPayment;
 window.doCheckIn = doCheckIn;
 window.doCheckOut = doCheckOut;
 window.cancelReservation = cancelReservation;
 window.deleteReservation = deleteReservation;
-
