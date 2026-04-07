@@ -35,12 +35,13 @@ function formatDateToPanama(dateInput) {
 }
 
 function getTodayInPanama() {
-    return new Intl.DateTimeFormat('es-PA', {
+    // Use 'en-CA' locale which reliably outputs YYYY-MM-DD format
+    return new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/Panama',
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
-    }).format(new Date()).split('/').reverse().join('-');
+    }).format(new Date());
 }
 
 window.dateToUTC = dateToUTC;
