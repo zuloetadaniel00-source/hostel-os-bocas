@@ -244,16 +244,15 @@ window.adjustCashBalance = async function(newAmount, adjustmentReason = 'Ajuste 
 
         if (insertCashError) throw insertCashError;
 
-        const isPositiveAdjustment = difference > 0;
-        const transactionType = isPositiveAdjustment ? 'income' : 'expense';
-        const description = `Ajuste de caja: ${adjustmentReason}. ${isPositiveAdjustment ? 'Sobrante' : 'Faltante'} detectado.`;
+        // Always register as income type 'cash_adjustment' — it represents the new cash state
+        const description = `Actualización de caja: ${adjustmentReason} (anterior: $${previousBalance.toFixed(2)} → nuevo: $${newAmount.toFixed(2)})`;
 
         const { error: transError } = await window.db
             .from('transactions')
             .insert({
-                type: transactionType,
+                type: 'income',
                 category: 'cash_adjustment',
-                amount: Math.abs(difference),
+                amount: newAmount,
                 payment_method: 'cash',
                 description: description,
                 shift_date: today,
@@ -307,4 +306,3 @@ window.updateCashBalance = async function(amount, operation) {
         return await window.subtractCashExpense(amount, 'Actualización manual', 'expense');
     }
 };
-
